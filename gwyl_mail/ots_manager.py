@@ -22,7 +22,9 @@ class OTSManager:
     @staticmethod
     def submit(data: bytes, out_dir: Path) -> Path | None:
         out_dir.mkdir(parents=True, exist_ok=True)
-        f = out_dir / "content_hash.txt"
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        f = out_dir / f"hash_{ts}.txt"
         f.write_bytes(data)
         if _ots_available():
             subprocess.run(["ots", "stamp", str(f)], check=False)
@@ -47,4 +49,3 @@ class OTSManager:
             return False
         subprocess.run(["ots", "upgrade", str(proof_file)], check=False)
         return True
-

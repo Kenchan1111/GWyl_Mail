@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -65,7 +67,9 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
         tmp_data.flush()
         blob_path = Path(tmp_data.name)
 
-    bundle_path = out_dir / "bundle_sign_blob.json"
+    # Timestamped bundle filename to avoid overwrite/ambiguity
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    bundle_path = out_dir / f"bundle_{ts}.json"
     cmd = [
         "cosign",
         "sign-blob",
@@ -79,8 +83,9 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
     ]
 
     try:
+        timeout_s = int(os.getenv("SIGSTORE_TIMEOUT", "30"))
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30
+            cmd, capture_output=True, text=True, timeout=timeout_s
         )
         if result.returncode != 0:
             # Graceful fallback
