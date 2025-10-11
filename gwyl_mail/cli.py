@@ -148,7 +148,16 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if ots_file and _has("ots"):
         try:
             res = subprocess.run(["ots", "verify", str(ots_file)], capture_output=True, text=True)
-            ots_ok = (res.returncode == 0)
+            if res.returncode != 0:
+                ots_ok = False
+                reasons.append("ots_verify_failed")
+            else:
+                out = (res.stdout or "") + (res.stderr or "")
+                if "Pending confirmation" in out or "not complete" in out:
+                    ots_ok = False
+                    reasons.append("ots_pending")
+                else:
+                    ots_ok = True
         except Exception:
             reasons.append("ots_verify_failed")
     elif ots_file:

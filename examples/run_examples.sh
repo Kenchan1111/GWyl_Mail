@@ -8,7 +8,7 @@ echo "[1/5] Canonical hash (plain text)"
 conda run -n GWYL_Env python -m gwyl_mail.cli canonical-hash examples/sample_plain_text.eml
 
 echo "[2/5] Canonical hash (HTML-only)"
-conda run -n GWYL_Env python -m gwyl_mail.cli canonical-hash examples/sample_html.eml || true
+conda run -n GWYL_Env python -m gwyl_mail.cli canonical-hash examples/sample_html.eml
 
 echo "[3/5] Canonical hash (attachments)"
 conda run -n GWYL_Env python -m gwyl_mail.cli canonical-hash examples/sample_with_attachments.eml
@@ -25,4 +25,3 @@ echo "[5/5] Integrity check of repository baseline"
 conda run -n GWYL_Env python /home/zack/GWyl_Integrity/unified_integrity.py check
 
 echo "Done."
-
