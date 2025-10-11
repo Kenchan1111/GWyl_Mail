@@ -98,6 +98,37 @@ Content Hash (SHA-256)
 
 ---
 
+## 🔐 Integrity Commit Flow
+
+Prérequis
+- Environnement Conda: `GWYL_Env`
+- OTS installé (`ots`) et cosign optionnel (`cosign`)
+
+Scripts et hooks
+- Script de commit sécurisé: `Temporary_Integrity/commit_with_integrity.sh`
+  - Vérifie la baseline avant/après commit (Conda `GWYL_Env`)
+  - Upgrade OTS best‑effort
+- Hooks Git
+  - `pre-commit`: vérification intégrité
+  - `pre-push`: upgrade OTS
+
+Usage
+```bash
+# Commit avec vérification baseline
+./Temporary_Integrity/commit_with_integrity.sh "Votre message"
+
+# Ou commit standard (hook pre-commit lancera l’intégrité)
+git commit -m "Votre message"
+
+# Push (hook pre-push upgrade OTS)
+git push
+```
+
+Notes
+- L’outil d’intégrité utilisé est `/home/zack/GWyl_Integrity/unified_integrity.py`
+- Le profil “strict” (V0) est utilisé pour la canonicalisation.
+
+
 ## 🛠️ Stack Technique
 
 **Langage**: Python 3.9+
