@@ -1,0 +1,174 @@
+# GWyl Mail - Système de Courrier Vérifié
+
+**Privacy Infrastructure Layer pour Email**
+
+Version: 0.1.0 (PoC)
+License: GPL-3.0
+Status: Development
+
+---
+
+## 🎯 Vue d'ensemble
+
+GWyl Mail est une couche de confidentialité et d'intégrité qui s'ajoute au système de courrier électronique classique. Elle fournit:
+
+- ✅ **Intégrité cryptographique**: Détection de toute modification du message
+- ✅ **Non-répudiation**: Preuves horodatées blockchain (OpenTimestamps)
+- ✅ **Identité vérifiée**: Authentification OIDC via Sigstore
+- ✅ **Privacy by design**: Divulgation minimale des métadonnées
+- ✅ **Interopérabilité**: Overlay compatible SMTP/IMAP existant
+
+---
+
+## 📋 Architecture
+
+```
+Message Email (SMTP/IMAP)
+    ↓
+Canonicalisation (DKIM-inspired)
+    ↓
+Content Hash (SHA-256)
+    ↓
+┌─────────────────────────────────┐
+│   DUAL TIMESTAMPING             │
+├─────────────────────────────────┤
+│  Sigstore (immédiat)            │
+│    - Identité OIDC              │
+│    - Rekor timestamp            │
+│    → Trust: MEDIUM              │
+│                                 │
+│  OpenTimestamps (différé)       │
+│    - Bitcoin blockchain         │
+│    - Preuve légale              │
+│    → Trust: HIGH                │
+│                                 │
+│  Politique d'identité           │
+│    - Mapping From ↔ Cert        │
+│    - Enforcement (warn/strict)  │
+└─────────────────────────────────┘
+```
+
+---
+
+## 📚 Documentation
+
+### Spécifications (docs/specs/)
+
+- **[CANONICALIZATION_v0.md](docs/specs/CANONICALIZATION_v0.md)** (v0.2.0): Algorithme de canonicalisation DKIM-inspired
+- **[PROOF_SCHEMA_v0.md](docs/specs/PROOF_SCHEMA_v0.md)** (v0.2.0): Schéma de preuve cryptographique (dual timestamping)
+- **[IDENTITY_POLICY_v0.md](docs/specs/IDENTITY_POLICY_v0.md)** (v0.1.0): Politique de mapping identité email ↔ certificat
+- **[KPI_POC.md](docs/specs/KPI_POC.md)** (v0.1.0): KPIs et critères de succès du PoC
+- **[TEST_VECTORS_v0.md](docs/specs/TEST_VECTORS_v0.md)** (v0.1.0): Vecteurs de test avec résultats attendus
+
+### Guides (à venir)
+
+- Installation & Configuration
+- Guide d'utilisation
+- Guide d'intégration
+- FAQ
+
+---
+
+## 🚀 Roadmap PoC
+
+### Phase 0: Spécifications ✅
+- ✅ Canonicalisation v0.2.0
+- ✅ Proof Schema v0.2.0
+- ✅ Identity Policy v0.1.0
+- ✅ KPIs PoC
+- ✅ Test Vectors
+
+### Phase 1: Implémentation Core (en cours)
+- ⏳ Module canonicalisation (gwyl_mail/canonical.py)
+- ⏳ Module Sigstore timestamp (gwyl_mail/sigstore_timestamp.py)
+- ⏳ Module OTS manager (gwyl_mail/ots_manager.py)
+- ⏳ Module dual proof (gwyl_mail/dual_proof.py)
+- ⏳ Module identity policy (gwyl_mail/identity_policy.py)
+
+### Phase 2: CLI & Tests
+- ⏳ CLI send/verify
+- ⏳ Tests unitaires
+- ⏳ Tests d'intégration (Gmail, Outlook, Postfix)
+- ⏳ Validation KPIs
+
+### Phase 3: Pilote
+- ⏳ Déploiement pilote (10 utilisateurs, 1 mois)
+- ⏳ Monitoring & métriques
+- ⏳ Feedback & ajustements
+
+---
+
+## 🛠️ Stack Technique
+
+**Langage**: Python 3.9+
+
+**Dépendances core**:
+- `sigstore` - Signature et timestamping via Rekor
+- `opentimestamps-client` - Ancrage blockchain Bitcoin
+- `pyyaml` - Configuration politique
+- `canonicaljson` - Normalisation JSON (JCS RFC 8785)
+- `email` (stdlib) - Parsing email
+
+**Standards**:
+- RFC 6376 (DKIM) - Inspiration canonicalisation
+- RFC 2047 (Encoded-words) - Décodage headers
+- RFC 5322 (Email format) - Structure email
+- RFC 8785 (JCS) - Canonicalisation JSON
+- DSSE (Dead Simple Signing Envelope) - Signature proof
+
+---
+
+## 🎯 KPIs PoC
+
+Critères de succès (détails dans [KPI_POC.md](docs/specs/KPI_POC.md)):
+
+- **Interopérabilité**: ≥95% (Gmail, Outlook, Postfix)
+- **Performance**: <50KB overhead, <150ms vérification
+- **Fiabilité**: ≥90% confirmation OTS sous 48h
+- **Sécurité**: 100% détection tampering
+
+---
+
+## 🔐 Sécurité & Privacy
+
+### Menaces couvertes
+- ✅ Modification silencieuse du message
+- ✅ Usurpation d'identité expéditeur
+- ✅ Backdating / timestamping frauduleux
+- ✅ Replay attacks
+- ✅ Divulgation métadonnées (minimal disclosure)
+
+### Privacy by design
+- Hash des adresses email (pas de PII en clair)
+- Preuves portables (vérification offline)
+- Sélection profil canonicalisation (strict/relaxed)
+- Politique d'identité configurable
+
+---
+
+## 👥 Contributeurs
+
+Voir [CONTRIBUTORS.md](CONTRIBUTORS.md)
+
+- **Zack**: Project Lead & Principal Developer
+- **Claude (Anthropic)**: Development Assistant & Documentation
+- **ChatGPT (OpenAI)**: Technical Advisor & Architecture Review
+
+---
+
+## 📜 Licence
+
+GPL-3.0 - Voir [LICENSE](LICENSE)
+
+---
+
+## 🙏 Remerciements
+
+- **Sigstore**: Infrastructure de signature sans clé
+- **OpenTimestamps**: Ancrage blockchain gratuit
+- **DKIM (RFC 6376)**: Inspiration canonicalisation
+- **DSSE**: Standard signature envelope
+
+---
+
+**🔒 Privacy-first email integrity 🔒**

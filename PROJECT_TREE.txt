@@ -1,0 +1,183 @@
+GWyl Mail - Structure Projet Complète
+======================================
+Version: 0.1.0 | Date: 2025-01-11 | Phase: 0 (Specs) ✅
+
+📁 /home/zack/GWyl_Mail/
+│
+├── 📄 README.md                    (5.1 KB)  ✅ Vue d'ensemble
+├── 📄 LICENSE                      (795 B)   ✅ GPL-3.0
+├── 📄 CONTRIBUTORS.md              (1.3 KB)  ✅ Équipe
+├── 📄 CHANGELOG.md                 (3.3 KB)  ✅ Historique
+├── 📄 PROJECT_STATUS.md            (6.2 KB)  ✅ État détaillé
+├── 📄 GETTING_STARTED.md           (5.8 KB)  ✅ Guide dev
+├── 📄 .gitignore                   (474 B)   ✅ Git config
+├── 📄 Makefile                     (883 B)   ✅ Dev commands
+├── 📄 pyproject.toml               (2.2 KB)  ✅ Python config
+│
+├── 📁 docs/
+│   ├── 📄 SUMMARY.md               (8.5 KB)  ✅ Résumé exécutif
+│   └── 📁 specs/
+│       ├── 📄 CANONICALIZATION_v0.md  (28 KB)  ✅ v0.2.0 Specification
+│       ├── 📄 PROOF_SCHEMA_v0.md      (28 KB)  ✅ v0.2.0 Specification
+│       ├── 📄 IDENTITY_POLICY_v0.md   (18 KB)  🔄 v0.1.0 Draft
+│       ├── 📄 KPI_POC.md              (16 KB)  🔄 v0.1.0 Draft
+│       └── 📄 TEST_VECTORS_v0.md      (6 KB)   ✅ v0.1.0 Complete
+│
+├── 📁 gwyl_mail/                   ⏳ À implémenter
+│   ├── 📄 __init__.py              (558 B)   ✅ Module init
+│   ├── ⏳ canonical.py             (0 KB)    ⏳ Sprint 1 - Priorité 1
+│   ├── ⏳ sigstore_timestamp.py    (0 KB)    ⏳ Sprint 2
+│   ├── ⏳ ots_manager.py           (0 KB)    ⏳ Sprint 2
+│   ├── ⏳ dual_proof.py            (0 KB)    ⏳ Sprint 3
+│   ├── ⏳ identity_policy.py       (0 KB)    ⏳ Sprint 3
+│   └── ⏳ cli.py                   (0 KB)    ⏳ Sprint 4
+│
+├── 📁 tests/                       ⏳ À créer
+│   ├── ⏳ test_canonical.py        (0 KB)    ⏳ Sprint 1
+│   ├── ⏳ test_sigstore.py         (0 KB)    ⏳ Sprint 2
+│   ├── ⏳ test_ots.py              (0 KB)    ⏳ Sprint 2
+│   ├── ⏳ test_dual_proof.py       (0 KB)    ⏳ Sprint 3
+│   └── ⏳ test_identity_policy.py  (0 KB)    ⏳ Sprint 3
+│
+├── 📁 examples/                    ⏳ À créer
+│   ├── ⏳ simple_send.py           (0 KB)    ⏳ Sprint 4
+│   ├── ⏳ simple_verify.py         (0 KB)    ⏳ Sprint 4
+│   └── ⏳ policy_config.yml        (0 KB)    ⏳ Sprint 3
+│
+└── 📁 .gwyl_mail/                  (Config locale)
+    ├── ⏳ identity_policy.yml      (0 KB)    ⏳ Sprint 3
+    └── 📁 proofs/                  (Stockage)
+
+════════════════════════════════════════════════════════════════
+
+📊 MÉTRIQUES PROJET
+
+Documentation:
+  ✅ Fichiers markdown:     11 fichiers
+  ✅ Lignes totales:        ~4300 lignes
+  ✅ Spécifications:        5 docs (96 KB)
+  ✅ Guides:                4 docs (25 KB)
+
+Code source:
+  ⏳ Modules Python:        0/6 implémentés (0%)
+  ⏳ Tests unitaires:       0/5 créés (0%)
+  ⏳ Exemples:              0/3 créés (0%)
+  ⏳ Lignes code:           ~558 (init only)
+
+État:
+  Phase 0 (Specs):          ✅ COMPLÉTÉE (100%)
+  Phase 1 (Implémentation): ⏳ À DÉMARRER (0%)
+  Phase 2 (Tests):          ⏳ PLANIFIÉE
+  Phase 3 (Pilote):         ⏳ PLANIFIÉE
+
+════════════════════════════════════════════════════════════════
+
+🎯 PROCHAINES ÉTAPES
+
+Sprint 1 (Priorité 1): Canonicalisation
+  [ ] Implémenter gwyl_mail/canonical.py
+  [ ] Créer tests/test_canonical.py
+  [ ] Valider contre TEST_VECTORS_v0.md
+  [ ] Coverage ≥90%
+
+Sprint 2: Timestamping
+  [ ] Implémenter gwyl_mail/sigstore_timestamp.py
+  [ ] Implémenter gwyl_mail/ots_manager.py
+  [ ] Tests unitaires
+
+Sprint 3: Proof & Policy
+  [ ] Implémenter gwyl_mail/dual_proof.py
+  [ ] Implémenter gwyl_mail/identity_policy.py
+  [ ] Tests unitaires
+
+════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION COMPLÈTE
+
+Démarrage:
+  → README.md              Vue d'ensemble
+  → GETTING_STARTED.md     Guide développeur
+  → PROJECT_STATUS.md      État détaillé
+
+Spécifications:
+  → CANONICALIZATION_v0.md Algorithme canonicalisation (28 KB)
+  → PROOF_SCHEMA_v0.md     Schéma preuve crypto (28 KB)
+  → IDENTITY_POLICY_v0.md  Politique identité (18 KB)
+  → KPI_POC.md             Critères succès (16 KB)
+  → TEST_VECTORS_v0.md     Vecteurs test (6 KB)
+
+Gestion projet:
+  → CHANGELOG.md           Historique
+  → CONTRIBUTORS.md        Équipe
+  → docs/SUMMARY.md        Résumé exécutif
+
+════════════════════════════════════════════════════════════════
+
+🔧 COMMANDES UTILES
+
+Setup:
+  $ cd /home/zack/GWyl_Mail
+  $ python3 -m venv venv
+  $ source venv/bin/activate
+  $ make dev
+
+Développement:
+  $ make test              Lancer tests
+  $ make lint              Vérifier code
+  $ make format            Formatter code
+  $ make clean             Nettoyer
+
+Tests:
+  $ pytest                 Tous les tests
+  $ pytest tests/test_canonical.py -v
+  $ pytest --cov=gwyl_mail --cov-report=html
+
+════════════════════════════════════════════════════════════════
+
+🎓 ARCHITECTURE
+
+Message Email → Canonicalisation → Hash SHA-256
+                                      ↓
+                    ┌─────────────────┴─────────────────┐
+                    ↓                                   ↓
+              Sigstore (immédiat)               OTS (différé)
+              - OIDC Identity                   - Bitcoin blockchain
+              - Rekor timestamp                 - Legal proof
+              - Trust: MEDIUM                   - Trust: HIGH
+                    ↓                                   ↓
+                    └─────────────────┬─────────────────┘
+                                      ↓
+                              Dual Proof (JSON)
+                              - Signature DSSE
+                              - Policy hash
+                              - Anti-replay
+                              - Privacy minimal
+
+════════════════════════════════════════════════════════════════
+
+👥 CONTRIBUTEURS
+
+  Zack          Project Lead & Vision
+  Claude        Development & Specs
+  ChatGPT       Architecture Review
+
+Contributions ChatGPT critiques:
+  ✅ Canonicalisation identifiée comme priorité #1
+  ✅ Architecture simplifiée (élimination Roughtime)
+  ✅ Standards: DSSE, JCS, policy_hash
+  ✅ KPIs mesurables définis
+
+════════════════════════════════════════════════════════════════
+
+📜 LICENCE
+
+GPL-3.0 - Voir LICENSE
+
+════════════════════════════════════════════════════════════════
+
+Généré le: 2025-01-11 17:50 UTC
+Project: GWyl Mail v0.1.0
+Status: Phase 0 (Specifications) ✅ COMPLÉTÉE
+Next: Phase 1 (Implementation) ⏳ À DÉMARRER
+
+🔒 Privacy-first email integrity for the AI era 🔒
