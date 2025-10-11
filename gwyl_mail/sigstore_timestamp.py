@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
+
+
+class SigstoreUnavailableError(RuntimeError):
+    pass
+
+
+class SigstoreError(RuntimeError):
+    pass
 
 
 def _cosign_available() -> bool:
@@ -14,51 +24,129 @@ def _cosign_available() -> bool:
 
 @dataclass
 class SigstoreProof:
-    bundle_path: str | None
-    cert_issuer: str | None
-    rekor_entry: str | None
-    rekor_timestamp: int | None
-    rekor_log_index: int | None
+    bundle_path: Optional[str]
+    bundle_digest: Optional[str]
+    cert_issuer: Optional[str]
+    rekor_entry: Optional[str]
+    rekor_timestamp: Optional[int]
+    rekor_log_index: Optional[int]
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProof:
-    """Minimal wrapper; falls back to offline if cosign is unavailable.
+    """Robust Sigstore wrapper using cosign sign-blob with bundle output.
 
-    Note: Interactive OIDC may not be suitable for headless runs.
+    If cosign is unavailable or signing fails, returns an offline placeholder proof
+    (bundle_path=None) to keep the pipeline usable, and delegates trust to OTS.
     """
     if not _cosign_available():
-        return SigstoreProof(bundle_path=None, cert_issuer=None, rekor_entry=None, rekor_timestamp=None, rekor_log_index=None)
-
-    with tempfile.TemporaryDirectory() as td:
-        blob = Path(td) / "blob.txt"
-        blob.write_bytes(data)
-        bundle = Path(td) / "bundle.json"
-        cmd = [
-            "cosign",
-            "sign-blob",
-            str(blob),
-            "--bundle",
-            str(bundle),
-        ]
-        # Optional identity token handled externally if needed
-        subprocess.run(cmd, check=False)
-        if not bundle.exists():
-            return SigstoreProof(bundle_path=None, cert_issuer=None, rekor_entry=None, rekor_timestamp=None, rekor_log_index=None)
-        try:
-            meta = json.loads(bundle.read_text())
-        except Exception:
-            meta = {}
-        # Best-effort extraction
-        issuer = None
-        rekor_entry = None
-        rekor_timestamp = None
-        log_index = None
-        # Rekor info varies per version; keep None if unknown
         return SigstoreProof(
-            bundle_path=str(bundle),
-            cert_issuer=issuer,
-            rekor_entry=rekor_entry,
-            rekor_timestamp=rekor_timestamp,
-            rekor_log_index=log_index,
+            bundle_path=None,
+            bundle_digest=None,
+            cert_issuer=None,
+            rekor_entry=None,
+            rekor_timestamp=None,
+            rekor_log_index=None,
         )
 
+    # Persist bundle for offline verification
+    out_dir = Path(".gwyl_mail/proofs/sigstore")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as tmp_data:
+        tmp_data.write(data)
+        tmp_data.flush()
+        blob_path = Path(tmp_data.name)
+
+    bundle_path = out_dir / "bundle_sign_blob.json"
+    cmd = [
+        "cosign",
+        "sign-blob",
+        str(blob_path),
+        "--bundle",
+        str(bundle_path),
+        "--output-certificate",
+        "/dev/null",
+        "--output-signature",
+        "/dev/null",
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30
+        )
+        if result.returncode != 0:
+            # Graceful fallback
+            return SigstoreProof(
+                bundle_path=None,
+                bundle_digest=None,
+                cert_issuer=None,
+                rekor_entry=None,
+                rekor_timestamp=None,
+                rekor_log_index=None,
+            )
+        if not bundle_path.exists():
+            return SigstoreProof(
+                bundle_path=None,
+                bundle_digest=None,
+                cert_issuer=None,
+                rekor_entry=None,
+                rekor_timestamp=None,
+                rekor_log_index=None,
+            )
+
+        # Parse bundle best-effort (format may vary across cosign versions)
+        try:
+            bundle_data = json.loads(bundle_path.read_text())
+        except Exception:
+            bundle_data = {}
+
+        issuer = None
+        rekor_entry = None
+        rekor_ts: Optional[int] = None
+        log_index: Optional[int] = None
+
+        # Some cosign bundles include Rekor payload; keep best-effort extraction
+        rekor_entry = (
+            bundle_data.get("rekorEntry")
+            or bundle_data.get("RekorEntry")
+            or None
+        )
+        if isinstance(rekor_entry, dict):
+            rekor_ts = rekor_entry.get("integratedTime") or rekor_entry.get("IntegratedTime")
+            log_index = rekor_entry.get("logIndex") or rekor_entry.get("LogIndex")
+            # Build a string URL if present
+            rekor_entry_str = rekor_entry.get("url") or rekor_entry.get("URL") or None
+        else:
+            rekor_entry_str = None
+
+        bundle_digest = _sha256_file(bundle_path)
+        return SigstoreProof(
+            bundle_path=str(bundle_path),
+            bundle_digest=bundle_digest,
+            cert_issuer=issuer,
+            rekor_entry=rekor_entry_str,
+            rekor_timestamp=rekor_ts,
+            rekor_log_index=log_index,
+        )
+    except subprocess.TimeoutExpired:
+        return SigstoreProof(
+            bundle_path=None,
+            bundle_digest=None,
+            cert_issuer=None,
+            rekor_entry=None,
+            rekor_timestamp=None,
+            rekor_log_index=None,
+        )
+    finally:
+        try:
+            blob_path.unlink(missing_ok=True)
+        except Exception:
+            pass

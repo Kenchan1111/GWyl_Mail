@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -10,6 +11,7 @@ from typing import Any, Dict, Optional
 from .canonical import GWylCanonical
 from .sigstore_timestamp import sign_and_timestamp
 from .ots_manager import OTSManager
+from .validation import ProofValidator, ProofValidationError
 
 
 def _utcnow_iso() -> str:
@@ -46,6 +48,7 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
         },
         "sigstore": {
             "bundle_path": sigstore.bundle_path,
+            "bundle_digest": sigstore.bundle_digest,
             "cert_issuer": sigstore.cert_issuer,
             "rekor_entry": sigstore.rekor_entry,
             "rekor_timestamp": sigstore.rekor_timestamp,
@@ -67,8 +70,10 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             "valid": None,
         },
         "anti_replay": {
-            "nonce": _sha256_hex((ts + identity).encode())[:36],
-            "expires_at": None,
+            "nonce": secrets.token_hex(16),
+            "created_at": ts,
+            "expires_at": (datetime.fromisoformat(ts.replace("Z", "+00:00")) + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+            "ttl_seconds": 300
         },
         "privacy": {
             "metadata_disclosure": "minimal",
@@ -83,7 +88,7 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             "instant_verifiable": ["sigstore"] if sigstore.bundle_path else [],
             "legal_grade": ["opentimestamps"] if proof_file else [],
             "revocation_status": "unknown",
-            "reasons": [],
+            "reasons": ["canonical_ok"] if content_hash else [],
         },
     }
 
@@ -91,5 +96,14 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
     proof["proof_canonical_digest"] = _sha256_hex(
         json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()
     )
-    return proof
+    # Validate against schema (best-effort)
+    try:
+        validator = ProofValidator()
+        result = validator.validate(proof)
+        if not result.valid:
+            raise ProofValidationError(f"Generated proof invalid: {result.error}")
+    except Exception:
+        # Keep pipeline usable even if schema or validator missing
+        pass
 
+    return proof

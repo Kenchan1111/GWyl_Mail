@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gwyl.io/schemas/mail-proof-v0.2.0.json",
+  "title": "GWyl Mail Proof v0.2.0",
+  "type": "object",
+  "required": ["version", "message_id", "canonical", "sigstore", "opentimestamps", "anti_replay"],
+  "properties": {
+    "version": {"type": "string", "const": "0.2.0"},
+    "message_id": {"type": "string"},
+    "canonical": {
+      "type": "object",
+      "required": ["algorithm", "content_hash"],
+      "properties": {
+        "algorithm": {"type": "string", "const": "gwyl-canonical-v0.2"},
+        "profile": {"type": "string"},
+        "nfc_scope": {"type": "string"},
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "sigstore": {
+      "type": "object",
+      "properties": {
+        "bundle_path": {"type": ["string", "null"]},
+        "bundle_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "cert_issuer": {"type": ["string", "null"]},
+        "rekor_entry": {"type": ["string", "null"]},
+        "rekor_timestamp": {"type": ["integer", "null"]},
+        "rekor_log_index": {"type": ["integer", "null"]},
+        "trust_level": {"type": "string"}
+      }
+    },
+    "opentimestamps": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "proof_file": {"type": ["string", "null"]},
+        "submitted_at": {"type": "string"},
+        "confirmed_at": {"type": ["string", "null"]},
+        "bitcoin_block": {"type": ["integer", "null"]},
+        "trust_level": {"type": "string"}
+      }
+    },
+    "anti_replay": {
+      "type": "object",
+      "required": ["nonce", "expires_at"],
+      "properties": {
+        "nonce": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+        "created_at": {"type": ["string", "null"]},
+        "expires_at": {"type": "string"},
+        "ttl_seconds": {"type": ["integer", "null"]}
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "properties": {
+        "metadata_disclosure": {"type": "string"},
+        "sender_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "recipient_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "salted": {"type": ["boolean", "null"]},
+        "salt_id": {"type": ["string", "null"]}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "trust_level": {"type": "string"},
+        "offline_mode": {"type": ["boolean", "null"]},
+        "instant_verifiable": {"type": "array"},
+        "legal_grade": {"type": "array"},
+        "revocation_status": {"type": "string"},
+        "reasons": {"type": "array"}
+      }
+    },
+    "proof_canonical_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+  }
+}
+

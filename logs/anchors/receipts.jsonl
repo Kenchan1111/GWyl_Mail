@@ -1,2 +1,3 @@
 {"action":"init","files_count":23,"merkle_root":"1bc610abe1189d71b0dccf0251579e2993ebe52887005f3c6a6e177851b1180b","ots_proof":"logs/anchors/ots/init_merkle_20251011T174323.446828+0000.txt.ots"}
 {"action":"init","files_count":33,"merkle_root":"df738505f28ec4a94639f3573ab0e19551418ea2256e748e84f014363f2322d8","ots_proof":"logs/anchors/ots/init_merkle_20251011T202259.394202+0000.txt.ots"}
+{"action":"init","files_count":39,"merkle_root":"81225bb0477013378fc868e568ad6c011cdd91385a8568638a231bb5a12bc919","ots_proof":"logs/anchors/ots/init_merkle_20251011T205100.651084+0000.txt.ots"}
