@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -27,7 +28,10 @@ class OTSManager:
         f = out_dir / f"hash_{ts}.txt"
         f.write_bytes(data)
         if _ots_available():
-            subprocess.run(["ots", "stamp", str(f)], check=False)
+            result = subprocess.run(["ots", "stamp", str(f)], capture_output=True, text=True)
+            if result.returncode != 0:
+                logging.warning(f"OTS stamp failed: {result.stderr}")
+                return None
             p = Path(str(f) + ".ots")
             return p if p.exists() else None
         return None

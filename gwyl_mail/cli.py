@@ -55,8 +55,8 @@ def _append_audit(entry: Dict[str, Any]) -> None:
         line = json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
         with log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️ Audit logging failed: {e}", file=sys.stderr)
 
 
 def cmd_verify(args: argparse.Namespace) -> int:

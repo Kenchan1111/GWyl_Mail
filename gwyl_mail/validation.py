@@ -33,8 +33,7 @@ class ProofValidator:
 
     def validate(self, proof: Dict[str, Any]) -> ValidationResult:
         if not self.schema or jsonschema is None:
-            # If schema or library missing, do not block
-            return ValidationResult(valid=True)
+            return ValidationResult(valid=False, error="Schema validation unavailable")
         try:
             jsonschema.validate(proof, self.schema)
             return ValidationResult(valid=True)
@@ -42,4 +41,3 @@ class ProofValidator:
             return ValidationResult(valid=False, error=f"Schema validation failed: {e.message}")
         except Exception as e:
             return ValidationResult(valid=False, error=f"Validation system error: {e}")
-

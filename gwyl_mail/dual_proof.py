@@ -96,14 +96,10 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
     proof["proof_canonical_digest"] = _sha256_hex(
         json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()
     )
-    # Validate against schema (best-effort)
-    try:
-        validator = ProofValidator()
-        result = validator.validate(proof)
-        if not result.valid:
-            raise ProofValidationError(f"Generated proof invalid: {result.error}")
-    except Exception:
-        # Keep pipeline usable even if schema or validator missing
-        pass
+    # Validate against schema (strict)
+    validator = ProofValidator()
+    result = validator.validate(proof)
+    if not result.valid:
+        raise ProofValidationError(f"Generated proof invalid: {result.error}")
 
     return proof
