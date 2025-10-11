@@ -1,0 +1,35 @@
+From: alice@example.com
+To: bob@example.com
+Subject: Contract and Logo
+Date: Fri, 10 Jan 2025 11:00:30 +0000
+Message-ID: <attach-001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY-12345"
+
+--BOUNDARY-12345
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Hi Bob,
+
+Please find the contract and logo attached.
+
+Best,
+Alice
+
+--BOUNDARY-12345
+Content-Type: application/pdf; name="contract.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="contract.pdf"
+
+UERGREFUQQ==
+
+--BOUNDARY-12345
+Content-Type: image/png; name="logo.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="logo.png"
+
+SU1BR0VEQVRB
+
+--BOUNDARY-12345--
+

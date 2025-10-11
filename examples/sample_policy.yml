@@ -1,0 +1,23 @@
+# GWyl Mail - Identity Policy (example)
+version: "0.1.0"
+enforcement_mode: warn  # warn | strict
+
+allowed_issuers:
+  - https://accounts.google.com
+  - https://login.microsoftonline.com
+
+allowed_domains:
+  - example.com
+  - company.com
+
+validation_rules:
+  - name: from_matches_cert
+    tolerance: exact   # exact | domain | alias
+    action: warn
+
+aliases:
+  alice@company.com:
+    allowed_aliases:
+      - noreply@company.com
+      - support@company.com
+

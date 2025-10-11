@@ -1,0 +1,15 @@
+From: Alice <alice@example.com>
+To: bob@example.com
+Subject: Hello Plain
+Date: Fri, 10 Jan 2025 10:20:30 +0000
+Message-ID: <plain-001@example.com>
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Hello Bob!
+
+This is a simple plain text message.
+
+Best,
+Alice
+

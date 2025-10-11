@@ -1,0 +1,15 @@
+From: alice@example.com
+To: bob@example.com
+Subject: Hello HTML
+Date: Fri, 10 Jan 2025 10:45:30 +0000
+Message-ID: <html-001@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html>
+<body>
+<p>Hello <b>Bob</b>!</p>
+</body>
+</html>
+
