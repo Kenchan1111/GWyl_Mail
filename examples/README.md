@@ -32,5 +32,19 @@ Files
 - `sample_html.eml` — HTML‑only email (strict profile keeps HTML as-is)
 - `sample_with_attachments.eml` — Multipart with two attachments
 - `sample_policy.yml` — Example identity policy (warn mode)
+- `verify_proof_offline.py` — Offline verifier for a proof JSON
 - `run_examples.sh` — Helper script to run all the above
 
+Verify a proof offline
+```bash
+# 1) Create a proof (see above or reuse the sample)
+conda run -n GWYL_Env python -m gwyl_mail.cli create-proof \
+  examples/sample_plain_text.eml \
+  --identity alice@company.com \
+  --out .gwyl_mail/proofs/sample_plain_text.proof.json
+
+# 2) Verify offline (canonical + cosign bundle if present + OTS if confirmed)
+conda run -n GWYL_Env python examples/verify_proof_offline.py \
+  --eml examples/sample_plain_text.eml \
+  --proof .gwyl_mail/proofs/sample_plain_text.proof.json
+```
