@@ -2,3 +2,4 @@
 {"action":"init","files_count":33,"merkle_root":"df738505f28ec4a94639f3573ab0e19551418ea2256e748e84f014363f2322d8","ots_proof":"logs/anchors/ots/init_merkle_20251011T202259.394202+0000.txt.ots"}
 {"action":"init","files_count":39,"merkle_root":"81225bb0477013378fc868e568ad6c011cdd91385a8568638a231bb5a12bc919","ots_proof":"logs/anchors/ots/init_merkle_20251011T205100.651084+0000.txt.ots"}
 {"action":"init","files_count":39,"merkle_root":"7529d61c29c545fef3107ef1e875ee1e19d4a2e6d3eaf9b97f10ebc8db9d890a","ots_proof":"logs/anchors/ots/init_merkle_20251011T213022.789071+0000.txt.ots"}
+{"action":"init","files_count":40,"merkle_root":"70fb08f369bd4b6e73d39f1f7c6d5fbbf7732153139b26ee3be86e889fb3fc10","ots_proof":"logs/anchors/ots/init_merkle_20251011T213212.467962+0000.txt.ots"}

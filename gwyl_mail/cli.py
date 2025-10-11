@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .canonical import GWylCanonical
 from .dual_proof import create_proof
@@ -63,6 +63,9 @@ def cmd_verify(args: argparse.Namespace) -> int:
     eml = Path(args.eml)
     proof_path = Path(args.proof)
     strict = bool(args.strict)
+    policy_path: Optional[Path] = Path(args.policy) if getattr(args, "policy", None) else None
+    expect_identity: Optional[str] = getattr(args, "expect_identity", None)
+    allow_issuer: Optional[str] = getattr(args, "allow_issuer", None)
 
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     reasons: List[str] = []
@@ -92,6 +95,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
     # 2) Sigstore bundle
     bundle_ok = False
     bundle_path = (proof.get("sigstore", {}) or {}).get("bundle_path")
+    bundle_identity: Optional[str] = None
+    bundle_issuer: Optional[str] = None
     if bundle_path and _has("cosign"):
         bp = Path(bundle_path)
         base = Path(".gwyl_mail/proofs/sigstore")
@@ -102,6 +107,30 @@ def cmd_verify(args: argparse.Namespace) -> int:
             try:
                 res = subprocess.run(["cosign", "verify-blob", str(tmp), "--bundle", str(bp)], capture_output=True, text=True, timeout=30)
                 bundle_ok = (res.returncode == 0)
+                if bundle_ok:
+                    # Try parse identity/issuer directly from bundle JSON (best-effort)
+                    try:
+                        bdata = json.loads(bp.read_text())
+                        # Heuristic extraction: search for strings containing '@' for identity and issuer-like URLs
+                        def walk(d):
+                            nonlocal bundle_identity, bundle_issuer
+                            if isinstance(d, dict):
+                                for k, v in d.items():
+                                    kl = str(k).lower()
+                                    if isinstance(v, (dict, list)):
+                                        walk(v)
+                                    else:
+                                        if isinstance(v, str):
+                                            if '@' in v and bundle_identity is None:
+                                                bundle_identity = v
+                                            if ('http://' in v or 'https://' in v or 'issuer' in kl) and bundle_issuer is None:
+                                                bundle_issuer = v
+                            elif isinstance(d, list):
+                                for x in d:
+                                    walk(x)
+                        walk(bdata)
+                    except Exception:
+                        pass
             except subprocess.TimeoutExpired:
                 reasons.append("sigstore_timeout")
             finally:
@@ -125,6 +154,63 @@ def cmd_verify(args: argparse.Namespace) -> int:
     elif ots_file:
         reasons.append("ots_cli_missing")
 
+    # Policy/Identity checks (optional)
+    policy_ok = True
+    if policy_path and policy_path.exists():
+        try:
+            from .identity_policy import IdentityPolicy
+            pol = IdentityPolicy(policy_path)
+            # Prefer EML From when available
+            from_addr = ""
+            try:
+                from email.utils import parseaddr
+                from_addr = parseaddr(msg.get("From", ""))[1] if canonical_ok else ""
+            except Exception:
+                pass
+            cert_subj = bundle_identity or ""
+            cert_iss = bundle_issuer or ""
+            res = pol.verify(from_addr, cert_subj, cert_iss)
+            policy_ok = res.get("valid", False) or (res.get("enforcement") == "warn")
+            if policy_ok:
+                reasons.append("policy_ok")
+            else:
+                reasons.append("policy_violation")
+        except Exception:
+            reasons.append("policy_error")
+
+    if expect_identity and bundle_identity:
+        if bundle_identity.lower() == expect_identity.lower():
+            reasons.append("identity_ok")
+        else:
+            reasons.append("identity_mismatch")
+            policy_ok = False if strict else policy_ok
+
+    if allow_issuer and bundle_issuer:
+        if allow_issuer in bundle_issuer:
+            reasons.append("issuer_ok")
+        else:
+            reasons.append("issuer_not_allowed")
+            policy_ok = False if strict else policy_ok
+
+    # Coherence Rekor/OTS (best-effort if timestamps available)
+    coherence_ok = True
+    rekor_ts = (proof.get("sigstore", {}) or {}).get("rekor_timestamp")
+    ots_ts = (proof.get("opentimestamps", {}) or {}).get("confirmed_at")
+    if rekor_ts and ots_ts:
+        try:
+            from datetime import datetime
+            rt = datetime.utcfromtimestamp(int(rekor_ts))
+            ot = datetime.fromisoformat(str(ots_ts).replace('Z', '+00:00'))
+            delta_h = abs((rt - ot).total_seconds()) / 3600.0
+            if delta_h <= 24:
+                reasons.append("coherence_ok")
+                coherence_ok = True
+            else:
+                reasons.append("coherence_failed")
+                coherence_ok = False
+        except Exception:
+            reasons.append("coherence_unknown")
+
     # Trust level
     if ots_ok:
         trust = "HIGH"
@@ -141,13 +227,13 @@ def cmd_verify(args: argparse.Namespace) -> int:
         "reasons": reasons,
     }
 
-    status = "ok" if (canonical_ok and (bundle_ok or ots_ok)) else "fail"
+    status = "ok" if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else "fail"
     audit = {"timestamp": now, "action": "verify", "status": status, **summary}
     _append_audit(audit)
     print(json.dumps(summary, indent=2))
 
     if strict:
-        return 0 if (canonical_ok and (bundle_ok or ots_ok)) else 1
+        return 0 if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else 1
     return 0 if canonical_ok else 1
 
 
@@ -180,6 +266,9 @@ def main() -> int:
     vf.add_argument("--eml", required=True)
     vf.add_argument("--proof", required=True)
     vf.add_argument("--strict", action="store_true")
+    vf.add_argument("--policy", help="Path to identity policy YAML")
+    vf.add_argument("--expect-identity", help="Expected signer identity (email)")
+    vf.add_argument("--allow-issuer", help="Allowed OIDC issuer substring")
     vf.set_defaults(func=cmd_verify)
 
     args = p.parse_args()
