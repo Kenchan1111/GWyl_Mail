@@ -1,0 +1,67 @@
+# Integrity Pipeline
+
+Ce dépôt fournit une chaîne complète pour attester l'intégrité de données via un heartbeat client, des contrôles CI GitHub et une journalisation ancrée (Sigstore/Rekor + OpenTimestamps).
+
+## Composants
+
+- `client/` : conteneur Debian minimal avec `heartbeat_client.py` et `run.sh`. Il calcule le SHA-256 du fichier/dossier cible, obtient le temps NTS (chrony `-Q` multi-source), produit `heartbeat.json` et pousse le résultat.
+- `.github/workflows/heartbeat-verify.yml` : sur chaque `push` de `main`, vérifie `heartbeat.json`, calcule un `proof.json`, ajoute une entrée chaînée dans `journal.jsonl`, puis pousse l'état (rebase automatique).
+- `.github/workflows/anchor.yml` : toutes les heures, agrège les nouvelles entrées, calcule un Merkle root, signe via Cosign (keyless vers Rekor), horodate via OpenTimestamps et marque les entrées de journal couvertes.
+- `audit/validate_chain.py` : vérifie la chaîne d'entrées (`prev_tip`, hash canonique), recalcule le Merkle root en fonction des ancres et recourt à Cosign/OTS si disponibles.
+- `audit/generate_baseline.py` : produit un manifeste SHA-256 (`baseline/manifest.json`) avec hash global (`baseline/manifest.sha256`).
+
+## Client heartbeat
+
+Variables attendues par `client/run.sh` :
+
+| Variable | Description |
+|----------|-------------|
+| `REPO_URL` | URL Git (avec token si nécessaire) |
+| `BRANCH` | Branche cible (par défaut `main`) |
+| `DEVICE_ID` | Identifiant du point de collecte |
+| `TARGET_PATH` | Fichier ou dossier à attester (ex: `/work/data`) |
+| `NTS_SERVERS` | Liste CSV de serveurs NTS (ex: `time.cloudflare.com,nts.netnod.se`) |
+| `COMMIT_NOTES` | Notes facultatives injectées dans `heartbeat.json` |
+| `GIT_USER_NAME`, `GIT_USER_EMAIL` | Identité Git utilisée pour les commits |
+| `PUSH_RETRIES` | Tentatives de push (gestion de concurrence) |
+
+Exécution planifiée (10 min) via `docker-compose.yml` :
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+Le conteneur monte le dépôt dans `./repo`, les données à attester dans `./data` et exécute `supercronic` avec `client/cron.d/heartbeat`.
+
+## Journal & ancrage CI
+
+- `heartbeat-verify.yml` utilise `concurrency` pour éviter les courses, bascule les scripts Python en `python3` et réalise un `git pull --rebase --autostash` avant `push`.
+- `anchor.yml` s'appuie sur `python3`, n'utilise plus `set-output`, produit des ancres horodatées (`anchors/anchor-YYYYMMDDTHHMMSSZ.json`) et met à jour `journal.jsonl` avec un marqueur `anchor_ref`.
+- En cas d'absence de `cosign` ou `ots` (audits hors CI), `audit/validate_chain.py` signale l'absence mais poursuit les vérifications du Merkle root.
+
+## Baseline & tamper evidence
+
+1. Générer le manifeste :
+   ```bash
+   python3 audit/generate_baseline.py
+   ```
+2. Résultat :
+   - `baseline/manifest.json` : liste triée des fichiers suivis + SHA-256 + taille.
+   - `baseline/manifest.sha256` : hash SHA-256 du manifeste (baseline signée).
+3. Résumé tamper-evidence hors bande : conserver les 12 premiers hex digits du hash (`manifest.sha256`).
+
+## Audit manuel
+
+```bash
+python3 audit/validate_chain.py --all  # vérifie toutes les ancres disponibles
+```
+
+Le script charge `journal.jsonl`, vérifie chaque entrée (`prev_tip`, hash canonique), recalcule le Merkle root des ancres et utilise Cosign/OTS si installés.
+
+## Bonnes pratiques production
+
+- Protéger la branche (`require status checks`, interdiction des force-push, merge via PR signées).
+- Restreindre les credentials utilisés par le client (token dédié avec permissions limitées au dépôt).
+- Ouvrir les flux réseau NTS (UDP/123, TCP/4460) pour le conteneur.
+- Suivre les artefacts `heartbeat-proof-<run_id>` exportés par la CI pour une inspection rapide.
