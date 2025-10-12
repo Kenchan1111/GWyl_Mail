@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from email import policy
 from email.header import decode_header
 from email.message import EmailMessage
@@ -56,6 +57,8 @@ def canonicalize_headers(msg: EmailMessage) -> bytes:
         v = " ".join(v.split())
         if key in ("from", "to"):
             v = _normalize_addresses(v)
+        # Unicode NFC normalization
+        v = unicodedata.normalize('NFC', v)
         lines.append(f"{key}:{v}")
     return "\n".join(lines).encode("utf-8")
 
@@ -75,6 +78,8 @@ def canonicalize_body(msg: EmailMessage) -> bytes:
     normalized = "\n".join(lines)
     if normalized and not normalized.endswith("\n"):
         normalized += "\n"
+    # Unicode NFC normalization
+    normalized = unicodedata.normalize('NFC', normalized)
     return normalized.encode("utf-8")
 
 

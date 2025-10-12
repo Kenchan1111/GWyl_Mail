@@ -4,3 +4,5 @@
 {"timestamp":"2025-10-12T09:56:23.931781Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
 {"timestamp":"2025-10-12T09:58:59.714358Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"]}
 {"timestamp":"2025-10-12T09:58:59.745456Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
+{"timestamp":"2025-10-12T10:17:27.590664Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"]}
+{"timestamp":"2025-10-12T10:17:27.624852Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
