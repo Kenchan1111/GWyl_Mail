@@ -17,10 +17,39 @@ et ce projet adhère à [Semantic Versioning](https://semver.org/lang/fr/).
   - Use `tempfile.NamedTemporaryFile` instead of fixed path to avoid collisions
   - Expose `identity` and `issuer` in verify output JSON and audit log
 - **pyproject.toml**: Remove unused dependencies (`click`, `rich`, `canonicaljson`)
+- **Temporary_Integrity/commit_with_integrity.sh**: Enhanced integrity commit script
+  - Implement baseline snapshot strategy (`.committed` in git + `.sha256` local)
+  - Solve auto-reference problem (baseline can't contain its own hash)
+  - Add verbose 7-step chain-of-trust verification
+  - Show SHA256 hashes, file delta (unchanged/modified/added/removed)
+  - Verify old = old before committing (chain integrity)
+  - Complete audit trail: git diff, git log commands
 
 #### Documentation
 - **PROJECT_STATUS.md**: Complete update reflecting Sprint 1-4 achievements
 - **CHANGELOG.md**: Update with Sprint 3 and Sprint 4 changes
+- **.gitignore**: Exclude local baseline file (`SECURITY_INTEGRITY_BASELINE.sha256`)
+
+#### Résultat ChatGPT Review Post-Sprint 4
+
+**Points résolus** ✅:
+1. Extraction identité Sigstore robuste (X.509 + SAN + issuer)
+2. Timestamp OTS réel (ots info parsing, 3 formats)
+3. Temp file unique (NamedTemporaryFile)
+4. Identity/issuer exposés (verify output + audit)
+5. Type hints corrects (EmailMessage | bytes | str)
+6. Dependencies cleanup (click, rich, canonicaljson removed)
+
+**Points critiques restants** ⚠️ (Sprint 5):
+- P1: DSSE signature manquante (proof JSON pas signé)
+- P1: Identity pas extraite à create_proof() (seulement à verify)
+- P2: Issuer substring match trop permissif
+- P2: Path traversal symlink possible
+- P2: OTS parsing fragile
+- P3: Coherence delta Rekor↔OTS pas visible
+- P3: Privacy metadata incomplet
+
+**Security Score**: 9.0/10 (Sprint 3-4)
 
 ---
 

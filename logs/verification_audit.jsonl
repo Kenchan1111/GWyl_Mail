@@ -14,3 +14,5 @@
 {"timestamp":"2025-10-12T11:13:55.983107Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"],"identity":null,"issuer":null}
 {"timestamp":"2025-10-12T11:43:51.907303Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"],"identity":null,"issuer":null}
 {"timestamp":"2025-10-12T11:43:51.949135Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"],"identity":null,"issuer":null}
+{"timestamp":"2025-10-12T12:33:16.412448Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"],"identity":null,"issuer":null}
+{"timestamp":"2025-10-12T12:33:16.454265Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"],"identity":null,"issuer":null}
