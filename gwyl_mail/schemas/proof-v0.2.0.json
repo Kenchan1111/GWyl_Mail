@@ -17,11 +17,30 @@
         "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
     },
+    "policy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["policy_id", "policy_hash"],
+          "properties": {
+            "policy_id": {"type": "string"},
+            "policy_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "policy_url": {"type": ["string", "null"]}
+          }
+        },
+        {"type": "null"}
+      ]
+    },
     "sigstore": {
       "type": "object",
       "properties": {
         "bundle_path": {"type": ["string", "null"]},
-        "bundle_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "bundle_digest": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
         "cert_issuer": {"type": ["string", "null"]},
         "rekor_entry": {"type": ["string", "null"]},
         "rekor_timestamp": {"type": ["integer", "null"]},
@@ -54,8 +73,18 @@
       "type": "object",
       "properties": {
         "metadata_disclosure": {"type": "string"},
-        "sender_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
-        "recipient_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "sender_hash": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "recipient_hash": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
         "salted": {"type": ["boolean", "null"]},
         "salt_id": {"type": ["string", "null"]}
       }
@@ -71,7 +100,12 @@
         "reasons": {"type": "array"}
       }
     },
-    "proof_canonical_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+    "proof_canonical_digest": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        {"type": "null"}
+      ]
+    }
   }
 }
 

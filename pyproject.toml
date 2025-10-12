@@ -44,6 +44,7 @@ dependencies = [
     "opentimestamps-client>=0.7.0",
     "pyyaml>=6.0",
     "canonicaljson>=2.0.0",
+    "jsonschema>=4.0.0",
     "click>=8.0.0",
     "rich>=13.0.0",
 ]

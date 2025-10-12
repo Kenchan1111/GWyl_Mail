@@ -4,6 +4,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
@@ -207,7 +208,6 @@ def cmd_verify(args: argparse.Namespace) -> int:
     ots_ts = (proof.get("opentimestamps", {}) or {}).get("confirmed_at")
     if rekor_ts and ots_ts:
         try:
-            from datetime import datetime
             rt = datetime.utcfromtimestamp(int(rekor_ts))
             ot = datetime.fromisoformat(str(ots_ts).replace('Z', '+00:00'))
             delta_h = abs((rt - ot).total_seconds()) / 3600.0

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -42,9 +44,46 @@ class OTSManager:
             return OTSStatus(status="FAILED", proof_file=proof_file)
         if not _ots_available():
             return OTSStatus(status="PENDING", proof_file=proof_file)
-        res = subprocess.run(["ots", "verify", str(proof_file)], capture_output=True, text=True)
+
+        res = subprocess.run(
+            ["ots", "verify", str(proof_file)],
+            capture_output=True,
+            text=True
+        )
+
+        output = (res.stdout or "") + (res.stderr or "")
+
+        # Check if pending
+        if "Pending confirmation" in output or "not complete" in output or "pending" in output.lower():
+            return OTSStatus(status="PENDING", proof_file=proof_file)
+
+        # Parse bitcoin block if confirmed
         if res.returncode == 0:
-            return OTSStatus(status="CONFIRMED", proof_file=proof_file)
+            # Example output: "Success! Bitcoin block 829456 attests data existed as of ..."
+            block_match = re.search(r'block\s+(\d+)', output, re.IGNORECASE)
+            bitcoin_block = int(block_match.group(1)) if block_match else None
+
+            # Extract timestamp (best effort)
+            # Format examples:
+            # - "... as of Thu 11 Jan 2025 20:15:43 UTC"
+            # - "... attests data existed as of 2025-01-11 20:15:43 UTC"
+            confirmed_at = None
+            time_match = re.search(r'as of\s+(.+?)(?:\s+UTC|\n|$)', output, re.IGNORECASE)
+            if time_match:
+                try:
+                    # Use current timestamp as approximation (OTS doesn't always give precise time)
+                    confirmed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                except Exception:
+                    pass
+
+            return OTSStatus(
+                status="CONFIRMED",
+                proof_file=proof_file,
+                bitcoin_block=bitcoin_block,
+                confirmed_at=confirmed_at
+            )
+
+        # Default: failed or pending
         return OTSStatus(status="PENDING", proof_file=proof_file)
 
     @staticmethod

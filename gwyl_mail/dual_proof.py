@@ -12,6 +12,7 @@ from .canonical import GWylCanonical
 from .sigstore_timestamp import sign_and_timestamp
 from .ots_manager import OTSManager
 from .validation import ProofValidator, ProofValidationError
+from .policy_utils import compute_policy_hash, extract_policy_metadata
 
 
 def _utcnow_iso() -> str:
@@ -37,6 +38,23 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
     ots_dir = Path(".gwyl_mail/proofs/ots")
     proof_file = OTSManager.submit(content_hash.encode(), ots_dir)
 
+    # Verify OTS immediately to populate metadata if already confirmed
+    ots_status = OTSManager.verify(proof_file) if proof_file else OTSManager.verify(Path("/dev/null"))
+
+    # Policy metadata (if provided)
+    policy_data: Optional[Dict[str, Any]] = None
+    if policy_path and policy_path.exists():
+        try:
+            metadata = extract_policy_metadata(policy_path)
+            policy_data = {
+                "policy_id": metadata.get('policy_id', 'default'),
+                "policy_hash": compute_policy_hash(policy_path),
+                "policy_url": metadata.get('policy_url')
+            }
+        except Exception:
+            # Fallback: no policy (warn mode compatible)
+            policy_data = None
+
     proof: Dict[str, Any] = {
         "version": "0.2.0",
         "message_id": _sha256_hex((identity + ts + content_hash).encode())[:36],
@@ -46,6 +64,7 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             "nfc_scope": "filenames_only",
             "content_hash": content_hash,
         },
+        "policy": policy_data,
         "sigstore": {
             "bundle_path": sigstore.bundle_path,
             "bundle_digest": sigstore.bundle_digest,
@@ -56,12 +75,12 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             "trust_level": "MEDIUM" if sigstore.bundle_path else "LOW",
         },
         "opentimestamps": {
-            "status": "PENDING" if proof_file else "FAILED",
+            "status": ots_status.status if proof_file else "FAILED",
             "proof_file": str(proof_file) if proof_file else None,
             "submitted_at": ts,
-            "confirmed_at": None,
-            "bitcoin_block": None,
-            "trust_level": "PENDING" if proof_file else "FAILED",
+            "confirmed_at": ots_status.confirmed_at if proof_file else None,
+            "bitcoin_block": ots_status.bitcoin_block if proof_file else None,
+            "trust_level": "HIGH" if (proof_file and ots_status.status == "CONFIRMED") else ("PENDING" if proof_file else "FAILED"),
         },
         "coherence": {
             "rekor_ots_delta_seconds": None,
