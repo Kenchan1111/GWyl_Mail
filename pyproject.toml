@@ -41,6 +41,7 @@ classifiers = [
 
 dependencies = [
     "sigstore>=2.0.0",
+    "cryptography>=41.0.0",
     "opentimestamps-client>=0.7.0",
     "pyyaml>=6.0",
     "canonicaljson>=2.0.0",

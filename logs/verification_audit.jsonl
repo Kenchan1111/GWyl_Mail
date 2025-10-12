@@ -6,3 +6,7 @@
 {"timestamp":"2025-10-12T09:58:59.745456Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
 {"timestamp":"2025-10-12T10:17:27.590664Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"]}
 {"timestamp":"2025-10-12T10:17:27.624852Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
+{"timestamp":"2025-10-12T10:47:05.920467Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"]}
+{"timestamp":"2025-10-12T10:47:05.951487Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
+{"timestamp":"2025-10-12T10:54:19.616662Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"]}
+{"timestamp":"2025-10-12T10:54:19.658375Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}

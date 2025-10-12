@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from .canonical import GWylCanonical
 from .dual_proof import create_proof
 from .ots_manager import OTSManager
+from .sigstore_identity import extract_identity_from_bundle
 
 
 def cmd_canonical(args: argparse.Namespace) -> int:
@@ -109,29 +110,36 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 res = subprocess.run(["cosign", "verify-blob", str(tmp), "--bundle", str(bp)], capture_output=True, text=True, timeout=30)
                 bundle_ok = (res.returncode == 0)
                 if bundle_ok:
-                    # Try parse identity/issuer directly from bundle JSON (best-effort)
+                    # SPRINT 3: Use robust identity extraction instead of heuristic
                     try:
-                        bdata = json.loads(bp.read_text())
-                        # Heuristic extraction: search for strings containing '@' for identity and issuer-like URLs
-                        def walk(d):
-                            nonlocal bundle_identity, bundle_issuer
-                            if isinstance(d, dict):
-                                for k, v in d.items():
-                                    kl = str(k).lower()
-                                    if isinstance(v, (dict, list)):
-                                        walk(v)
-                                    else:
-                                        if isinstance(v, str):
-                                            if '@' in v and bundle_identity is None:
-                                                bundle_identity = v
-                                            if ('http://' in v or 'https://' in v or 'issuer' in kl) and bundle_issuer is None:
-                                                bundle_issuer = v
-                            elif isinstance(d, list):
-                                for x in d:
-                                    walk(x)
-                        walk(bdata)
+                        from .sigstore_identity import extract_identity_from_bundle
+                        sig_identity = extract_identity_from_bundle(bp)
+                        bundle_identity = sig_identity.email
+                        bundle_issuer = sig_identity.issuer
                     except Exception:
-                        pass
+                        # Fallback to old heuristic method if robust extraction fails
+                        try:
+                            bdata = json.loads(bp.read_text())
+                            # Heuristic extraction: search for strings containing '@' for identity and issuer-like URLs
+                            def walk(d):
+                                nonlocal bundle_identity, bundle_issuer
+                                if isinstance(d, dict):
+                                    for k, v in d.items():
+                                        kl = str(k).lower()
+                                        if isinstance(v, (dict, list)):
+                                            walk(v)
+                                        else:
+                                            if isinstance(v, str):
+                                                if '@' in v and bundle_identity is None:
+                                                    bundle_identity = v
+                                                if ('http://' in v or 'https://' in v or 'issuer' in kl) and bundle_issuer is None:
+                                                    bundle_issuer = v
+                                elif isinstance(d, list):
+                                    for x in d:
+                                        walk(x)
+                            walk(bdata)
+                        except Exception:
+                            pass
             except subprocess.TimeoutExpired:
                 reasons.append("sigstore_timeout")
             finally:

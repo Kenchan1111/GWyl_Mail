@@ -63,18 +63,8 @@ class OTSManager:
             block_match = re.search(r'block\s+(\d+)', output, re.IGNORECASE)
             bitcoin_block = int(block_match.group(1)) if block_match else None
 
-            # Extract timestamp (best effort)
-            # Format examples:
-            # - "... as of Thu 11 Jan 2025 20:15:43 UTC"
-            # - "... attests data existed as of 2025-01-11 20:15:43 UTC"
-            confirmed_at = None
-            time_match = re.search(r'as of\s+(.+?)(?:\s+UTC|\n|$)', output, re.IGNORECASE)
-            if time_match:
-                try:
-                    # Use current timestamp as approximation (OTS doesn't always give precise time)
-                    confirmed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-                except Exception:
-                    pass
+            # SPRINT 3: Extract REAL timestamp using ots info
+            confirmed_at = OTSManager._extract_real_timestamp(proof_file)
 
             return OTSStatus(
                 status="CONFIRMED",
@@ -85,6 +75,79 @@ class OTSManager:
 
         # Default: failed or pending
         return OTSStatus(status="PENDING", proof_file=proof_file)
+
+    @staticmethod
+    def _extract_real_timestamp(proof_file: Path) -> str | None:
+        """
+        Extract real Bitcoin timestamp using ots info
+
+        ChatGPT Critical Issue #2: Use ots info to get the actual
+        Bitcoin block timestamp instead of approximating with now().
+
+        Returns:
+            ISO timestamp string or None
+        """
+        try:
+            # Run ots info to get detailed timestamp information
+            res = subprocess.run(
+                ["ots", "info", str(proof_file)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if res.returncode != 0:
+                return None
+
+            output = res.stdout or ""
+
+            # Parse the output for attestation timestamp
+            # Example output format from ots info:
+            # "Bitcoin block height: 829456"
+            # Or from verify: "as of Thu 11 Jan 2025 20:15:43 UTC"
+
+            # Try to extract timestamp from different formats
+            # Format 1: "as of Thu 11 Jan 2025 20:15:43 UTC"
+            time_match = re.search(
+                r'as of\s+([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{2}:\d{2}:\d{2})',
+                output
+            )
+            if time_match:
+                time_str = time_match.group(1)
+                try:
+                    # Parse format: "Thu 11 Jan 2025 20:15:43"
+                    dt = datetime.strptime(time_str, "%a %d %b %Y %H:%M:%S")
+                    dt = dt.replace(tzinfo=timezone.utc)
+                    return dt.isoformat().replace("+00:00", "Z")
+                except ValueError:
+                    pass
+
+            # Format 2: ISO format "2025-01-11T20:15:43Z" or similar
+            iso_match = re.search(
+                r'(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})',
+                output
+            )
+            if iso_match:
+                time_str = iso_match.group(1).replace(' ', 'T')
+                try:
+                    dt = datetime.fromisoformat(time_str)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    return dt.isoformat().replace("+00:00", "Z")
+                except ValueError:
+                    pass
+
+            # Format 3: Unix timestamp
+            unix_match = re.search(r'timestamp:\s*(\d{10,})', output, re.IGNORECASE)
+            if unix_match:
+                unix_ts = int(unix_match.group(1))
+                dt = datetime.fromtimestamp(unix_ts, tz=timezone.utc)
+                return dt.isoformat().replace("+00:00", "Z")
+
+        except Exception:
+            pass
+
+        return None
 
     @staticmethod
     def upgrade(proof_file: Path) -> bool:
