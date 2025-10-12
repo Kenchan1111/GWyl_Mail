@@ -124,17 +124,53 @@ GWyl_Mail/
 
 ---
 
-## Intégration Git (Integrity Hooks)
+## Intégration Git (Integrity Hooks) — Mise à jour
 
-**Environnement Conda** : `GWYL_Env`
+Objectif: fiabiliser le flux baseline sans dépendre d’un script externe mutable.
 
-**Scripts et hooks** :
-- `Temporary_Integrity/commit_with_integrity.sh` - Commit avec vérification baseline
-- Hook `pre-commit` - Vérification intégrité
-- Hook `pre-push` - Upgrade OTS
+Changements clés
+- L’outil d’intégrité utilisé par les hooks pointe maintenant vers la copie locale: `Temporary_Integrity/unified_integrity.py` (au lieu de `/home/zack/GWyl_Integrity/unified_integrity.py`).
+- Le script `Temporary_Integrity/commit_with_integrity.sh` a été renforcé:
+  - Scan baseline robuste (NUL‑séparé) + exclusions supplémentaires (`.claude/`) pour réduire les faux positifs.
+  - Vérification byte‑à‑byte que la copie `.committed` == l’original.
+  - Commit en excluant l’original (`SECURITY_INTEGRITY_BASELINE.sha256`).
+  - Chaînage post‑commit: création d’un fichier meta `SECURITY_INTEGRITY_BASELINE.sha256.meta` qui enregistre le SHA256 de la baseline committée, l’ID de commit et le timestamp, puis commit séparé du meta.
 
-**Outil utilisé** : `/home/zack/GWyl_Integrity/unified_integrity.py`
-**Profil** : "strict" (V0) pour canonicalisation
+Installation rapide après clonage
+```bash
+# 1) Installer les hooks locaux (pre-commit + pre-push)
+make integrity-install
+
+# 2) (Optionnel) Générer baseline + snapshot + meta sans commit
+make integrity-baseline
+
+# 3) Commit avec intégrité (wrapper du script)
+make integrity-commit MSG="Votre message de commit"
+
+# Alternativement
+./Temporary_Integrity/commit_with_integrity.sh "Votre message de commit"
+```
+
+Détails hook pre-commit
+- Le hook local exécute: `python Temporary_Integrity/unified_integrity.py check`
+- En cas de mismatch/missing, le commit est bloqué et les détails sont loggés dans `logs/mismatch.jsonl`.
+
+Hook pre-push (OTS)
+- Le hook local exécute une mise à jour des preuves OTS si présentes:
+  - `logs/anchors/ots/*.ots` (intégrité dépôt)
+  - `.gwyl_mail/proofs/ots/*.ots` (preuves applicatives)
+- Si `ots` n'est pas disponible, le hook ne bloque pas le push; il affiche simplement un message.
+
+Flux “baseline originale → copie committée → meta”
+1. Générer `SECURITY_INTEGRITY_BASELINE.sha256` (original, non committé).
+2. Copier en `SECURITY_INTEGRITY_BASELINE.sha256.committed` (committé) et vérifier l’égalité.
+3. Commit 1: inclut `.committed` et les changements, en excluant l’original.
+4. Commit 2: écrit et commit `SECURITY_INTEGRITY_BASELINE.sha256.meta` avec le SHA256 de la baseline committée, l’ID de commit et l’horodatage.
+
+Notes
+- Le hook local `.git/hooks/pre-commit` n’est pas versionné; la cible `make integrity-install` le (ré)installe.
+- De même pour `.git/hooks/pre-push`.
+- Si d’autres répertoires “vivants” provoquent des mismatches, les ajouter aux exclusions du scan baseline dans `Temporary_Integrity/commit_with_integrity.sh` et dans `make integrity-baseline`.
 
 ---
 
