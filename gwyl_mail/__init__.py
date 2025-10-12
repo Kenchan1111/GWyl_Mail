@@ -1,4 +1,5 @@
 """
+SPDX-License-Identifier: GPL-3.0-only
 GWyl Mail - Privacy Infrastructure Layer pour Email
 
 Système de courrier vérifié avec:
@@ -10,7 +11,7 @@ Système de courrier vérifié avec:
 
 __version__ = "0.1.0"
 __author__ = "Zack, Claude, ChatGPT"
-__license__ = "GPL-3.0"
+__license__ = "GPL-3.0-only"
 
 from .canonical import GWylCanonical
 

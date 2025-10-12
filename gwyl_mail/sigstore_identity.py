@@ -1,4 +1,4 @@
-"""
+"""\nSPDX-License-Identifier: GPL-3.0-only
 Robust Sigstore Identity Extraction
 
 Uses sigstore-python library to properly parse bundle and extract:

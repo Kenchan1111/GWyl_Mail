@@ -3,7 +3,7 @@
 **Privacy Infrastructure Layer pour Email**
 
 Version: 0.1.0 (PoC)
-License: GPL-3.0
+License: GPL-3.0-only
 Status: Development
 
 ---

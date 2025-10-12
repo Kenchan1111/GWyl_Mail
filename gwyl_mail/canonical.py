@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 from __future__ import annotations
 
 import hashlib
@@ -248,4 +249,3 @@ class GWylCanonical:
         else:
             m = Parser(policy=policy.default).parsestr(message)
         return compute_hash(m, profile)
-

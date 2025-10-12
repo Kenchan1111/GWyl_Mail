@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """
 Unified Integrity System - Solution complète sans auto-référence
 ================================================================
