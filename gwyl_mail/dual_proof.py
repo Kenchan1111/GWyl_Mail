@@ -28,8 +28,20 @@ def _hash_email(addr: str) -> str:
     return _sha256_hex(addr.lower().encode())
 
 
-def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Path] = None, dsse: bool = True) -> Dict[str, Any]:
-    content_hash = GWylCanonical.hash(message)
+def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Path] = None, dsse: bool = True, profile: str = "strict") -> Dict[str, Any]:
+    """Create cryptographic proof for email message (Sprint 6.2.1: profile support).
+
+    Args:
+        message: Email message to prove
+        identity: Signer identity (email)
+        policy_path: Optional path to identity policy YAML
+        dsse: Whether to wrap proof in DSSE envelope
+        profile: Canonicalization profile ("strict" or "relaxed")
+
+    Returns:
+        Proof dict (or DSSE envelope if dsse=True)
+    """
+    content_hash = GWylCanonical.hash(message, profile=profile)
     ts = _utcnow_iso()
 
     # SPRINT 5.3.2: Extract EML From header for privacy metadata
@@ -75,7 +87,7 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
         "message_id": _sha256_hex((identity + ts + content_hash).encode())[:36],
         "canonical": {
             "algorithm": "gwyl-canonical-v0.2",
-            "profile": "strict",
+            "profile": profile,  # SPRINT 6.2.1: Store profile used
             "nfc_scope": "filenames_only",
             "content_hash": content_hash,
         },

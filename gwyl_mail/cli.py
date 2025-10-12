@@ -22,7 +22,8 @@ from .dsse_signer import verify_proof_dsse, extract_proof_from_dsse
 def cmd_canonical(args: argparse.Namespace) -> int:
     data = Path(args.eml).read_bytes()
     msg = BytesParser(policy=policy.default).parsebytes(data)
-    h = GWylCanonical.hash(msg)
+    profile = getattr(args, 'profile', 'strict')  # SPRINT 6.2.1
+    h = GWylCanonical.hash(msg, profile=profile)
     print(h)
     return 0
 
@@ -31,14 +32,15 @@ def cmd_proof(args: argparse.Namespace) -> int:
     data = Path(args.eml).read_bytes()
     msg = BytesParser(policy=policy.default).parsebytes(data)
     use_dsse = not getattr(args, 'no_dsse', False)
-    proof = create_proof(msg, identity=args.identity, dsse=use_dsse)
+    profile = getattr(args, 'profile', 'strict')  # SPRINT 6.2.1
+    proof = create_proof(msg, identity=args.identity, dsse=use_dsse, profile=profile)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(proof, ensure_ascii=False, indent=2))
     if use_dsse:
-        print(f"DSSE-signed proof written to {out}")
+        print(f"DSSE-signed proof written to {out} (profile: {profile})")
     else:
-        print(f"Proof written to {out}")
+        print(f"Proof written to {out} (profile: {profile})")
     return 0
 
 
@@ -126,16 +128,18 @@ def cmd_verify(args: argparse.Namespace) -> int:
         # Plain proof JSON (backward compat)
         proof = proof_data
 
-    # 1) Canonical
+    # 1) Canonical (SPRINT 6.2.1: Use profile from proof)
     try:
         msg = BytesParser(policy=policy.default).parsebytes(eml.read_bytes())
         expected_hash = (proof.get("canonical", {}) or {}).get("content_hash")
-        actual_hash = GWylCanonical.hash(msg)
+        # Extract profile from proof (default to "strict" for backward compat)
+        proof_profile = (proof.get("canonical", {}) or {}).get("profile", "strict")
+        actual_hash = GWylCanonical.hash(msg, profile=proof_profile)
         canonical_ok = (expected_hash == actual_hash)
         if canonical_ok:
-            reasons.append("canonical_ok")
+            reasons.append(f"canonical_ok(profile={proof_profile})")
         else:
-            reasons.append("canonical_mismatch")
+            reasons.append(f"canonical_mismatch(profile={proof_profile})")
     except Exception as e:
         canonical_ok = False
         reasons.append("canonical_error")
@@ -336,6 +340,7 @@ def main() -> int:
 
     c = sub.add_parser("canonical-hash", help="Compute canonical hash for an EML file")
     c.add_argument("eml")
+    c.add_argument("--profile", choices=["strict", "relaxed"], default="strict", help="Canonicalization profile (Sprint 6.2.1)")
     c.set_defaults(func=cmd_canonical)
 
     pr = sub.add_parser("create-proof", help="Create proof for an EML file")
@@ -343,6 +348,7 @@ def main() -> int:
     pr.add_argument("--identity", required=True)
     pr.add_argument("--out", default=".gwyl_mail/proofs/proof.json")
     pr.add_argument("--no-dsse", action="store_true", help="Disable DSSE signature (backward compatibility)")
+    pr.add_argument("--profile", choices=["strict", "relaxed"], default="strict", help="Canonicalization profile: 'strict' (default, no MTA tolerance) or 'relaxed' (tolerates MTA modifications)")
     pr.set_defaults(func=cmd_proof)
 
     up = sub.add_parser("upgrade-ots", help="Upgrade an OTS proof file")

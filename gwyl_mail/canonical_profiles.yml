@@ -1,0 +1,114 @@
+# Canonicalization Profiles Configuration
+# Sprint 6.2.1: Define strict vs relaxed canonicalization behaviors
+
+profiles:
+  # STRICT profile: Original behavior, no tolerance for MTA transformations
+  strict:
+    description: "Strict canonicalization - no tolerance for MTA modifications"
+    canonical_headers:
+      - from
+      - to
+      - subject
+      - date
+      - message-id
+
+    # Headers to include in canonicalization
+    included_headers: []
+
+    # Headers to always exclude (never part of canonical form)
+    excluded_headers: []
+
+    # Whitespace handling
+    whitespace:
+      normalize: true      # Collapse multiple spaces to single space
+      trim: true          # Trim leading/trailing whitespace
+
+    # Line ending normalization
+    line_endings:
+      normalize: true     # Convert CRLF to LF
+
+    # Address normalization
+    addresses:
+      lowercase_domain: true
+      preserve_local: true
+      preserve_display_name: true
+
+  # RELAXED profile: Tolerates common MTA transformations
+  relaxed:
+    description: "Relaxed canonicalization - tolerates MTA transformations"
+    canonical_headers:
+      - from
+      - to
+      - subject
+      - date
+      - message-id
+
+    # Headers commonly added/modified by MTAs - EXCLUDED from canonical form
+    excluded_headers:
+      # Routing headers added by MTAs
+      - received
+      - return-path
+      - delivered-to
+      - x-original-to
+
+      # Authentication headers added by receiving MTA
+      - dkim-signature
+      - arc-seal
+      - arc-message-signature
+      - arc-authentication-results
+      - authentication-results
+
+      # Spam/virus filtering headers
+      - x-spam-status
+      - x-spam-score
+      - x-spam-flag
+      - x-virus-scanned
+      - x-spam-checker-version
+
+      # MTA-specific headers
+      - x-mailer
+      - x-originating-ip
+      - x-received
+      - x-priority
+      - x-msmail-priority
+      - importance
+      - x-google-smtp-source
+      - x-gm-message-state
+
+      # List management headers
+      - list-id
+      - list-unsubscribe
+      - list-subscribe
+      - list-post
+
+      # Auto-reply headers
+      - auto-submitted
+      - x-auto-response-suppress
+
+      # MIME version (can be added/modified by MTA)
+      - mime-version
+
+      # Content-Type modifications by MTA
+      # Note: We still hash the body, but don't rely on Content-Type header
+
+    # Whitespace handling (more aggressive normalization)
+    whitespace:
+      normalize: true              # Collapse multiple spaces
+      trim: true                   # Trim whitespace
+      normalize_tabs: true         # Convert tabs to spaces
+      remove_trailing_spaces: true # Remove trailing spaces on lines
+
+    # Line ending normalization
+    line_endings:
+      normalize: true              # Convert all to LF
+      tolerate_wrapping: true      # Tolerate RFC 5322 line wrapping differences
+
+    # Address normalization
+    addresses:
+      lowercase_domain: true
+      preserve_local: true
+      preserve_display_name: true
+      normalize_comments: true     # Remove/normalize RFC 5322 comments in addresses
+
+# Default profile
+default_profile: strict
