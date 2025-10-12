@@ -73,17 +73,28 @@ echo ""
 echo "[3/7] Comparing git history vs current state..."
 
 if [ -f "$BASELINE_COMMITTED" ]; then
+  # Prepare path lists to avoid nested process substitutions
+  TMP_OLD=$(mktemp); TMP_NEW=$(mktemp); TMP_INT=$(mktemp)
+  cut -d' ' -f3- "$BASELINE_COMMITTED" | sort > "$TMP_OLD"
+  cut -d' ' -f3- "$BASELINE_FILE" | sort > "$TMP_NEW"
+
   # Count changes
-  ADDED=$(comm -13 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | wc -l)
-  REMOVED=$(comm -23 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | wc -l)
-  MODIFIED=$(while IFS= read -r file; do
+  ADDED=$(comm -13 "$TMP_OLD" "$TMP_NEW" | wc -l)
+  REMOVED=$(comm -23 "$TMP_OLD" "$TMP_NEW" | wc -l)
+  comm -12 "$TMP_OLD" "$TMP_NEW" > "$TMP_INT"
+
+  # Avoid pipefail issues: count modified files without piping the loop
+  MODIFIED=0
+  while IFS= read -r file; do
     # Extract hashes by matching exact end-of-line path (robust to spaces/specials)
     OLD_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_COMMITTED")
     NEW_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_FILE")
-    [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" != "$NEW_HASH" ] && echo "$file"
-  done < <(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort)) | wc -l)
+    if [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" != "$NEW_HASH" ]; then
+      MODIFIED=$((MODIFIED+1))
+    fi
+  done < "$TMP_INT"
 
-  UNCHANGED=$((FILE_COUNT - MODIFIED - ADDED))
+  UNCHANGED=$(( $(wc -l < "$TMP_INT") - MODIFIED ))
 
   echo "      📊 Baseline delta:"
   echo "         ✅ Unchanged: $UNCHANGED files (match git history)"
@@ -105,7 +116,7 @@ if [ -f "$BASELINE_COMMITTED" ]; then
         CHAIN_OK=false
       fi
     fi
-  done < <(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort))
+  done < "$TMP_INT"
 
   if [ "$CHAIN_OK" = true ]; then
     echo "      ✅ Chain of trust intact"
@@ -119,16 +130,19 @@ if [ -f "$BASELINE_COMMITTED" ]; then
   if [ "$MODIFIED" -gt 0 ]; then
     echo ""
     echo "      Modified files (showing first 10):"
+    # Collect modified file entries into a temp file, then print first 30
+    TMP_LIST=$(mktemp)
     while IFS= read -r file; do
       OLD_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_COMMITTED")
       NEW_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_FILE")
       if [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" != "$NEW_HASH" ]; then
-        echo "         • $file"
-        echo "           Old: ${OLD_HASH:0:16}..."
-        echo "           New: ${NEW_HASH:0:16}..."
+        printf "         • %s\n           Old: %.16s...\n           New: %.16s...\n" "$file" "$OLD_HASH" "$NEW_HASH" >> "$TMP_LIST"
       fi
-    done < <(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) ) | head -30
+    done < "$TMP_INT"
+    head -30 "$TMP_LIST"
+    rm -f "$TMP_LIST"
   fi
+  rm -f "$TMP_OLD" "$TMP_NEW" "$TMP_INT"
 else
   echo "      ⚠️  First commit - no comparison possible"
 fi
@@ -151,6 +165,29 @@ if ! cmp -s "$BASELINE_FILE" "$BASELINE_COMMITTED"; then
   echo "         Committed: $BASELINE_COMMITTED"
   exit 1
 fi
+
+# Refresh original baseline to reflect the new snapshot hash
+# (pre-commit check uses the original baseline as source of truth)
+TMP_BASELINE=$(mktemp)
+{
+  git ls-files -z \
+  | while IFS= read -r -d '' file; do
+      case "$file" in
+        SECURITY_INTEGRITY_BASELINE.sha256|SECURITY_INTEGRITY_BASELINE.sha256.committed|SECURITY_INTEGRITY_BASELINE.sha256.meta)
+          continue ;;
+      esac
+      case "$file" in
+        .gwyl_mail/*)
+          continue ;;
+      esac
+      [ -f "$file" ] || continue
+      sha=$(sha256sum -- "$file" | awk '{print $1}')
+      printf "%s  ./%s\n" "$sha" "$file"
+    done \
+  ;
+} > "$TMP_BASELINE"
+sort -k2 "$TMP_BASELINE" > "$BASELINE_FILE"
+rm -f "$TMP_BASELINE"
 echo ""
 echo "      🔗 Chain verification:"
 if [ -n "$COMMITTED_HASH" ]; then
