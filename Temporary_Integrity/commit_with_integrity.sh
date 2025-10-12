@@ -41,14 +41,19 @@ fi
 echo ""
 echo "[2/7] Generating new baseline for current state..."
 # Use git ls-files to get ALL tracked files (ensures consistency with git)
-# Exclude only the baseline files themselves and generated directories
+# Exclude only the baseline files themselves, generated directories, and append-only logs
+# Keep all OTS backups/receipts as they document integrity history (immutable after creation)
 # Process each file and add ./ prefix to match committed baseline format
-git ls-files \
-  | grep -v "^SECURITY_INTEGRITY_BASELINE.sha256$" \
-  | grep -v "^\.gwyl_mail/" \
-  | grep -v "^__pycache__/" \
-  | grep -v "^\.pytest_cache/" \
-  | while IFS= read -r file; do
+# Use NUL-terminated output for robust path handling (supports spaces, special chars)
+git ls-files -z \
+  | grep -zv "^SECURITY_INTEGRITY_BASELINE.sha256$" \
+  | grep -zv "^\.gwyl_mail/" \
+  | grep -zv "^__pycache__/" \
+  | grep -zv "^\.pytest_cache/" \
+  | grep -zv "^logs/verification_audit\.jsonl$" \
+  | grep -zv "^logs/mismatch\.jsonl$" \
+  | grep -zv "^logs/anchors/receipts\.jsonl$" \
+  | while IFS= read -r -d '' file; do
       if [ -f "$file" ]; then
         sha256sum "$file" | sed "s|  |  ./|"
       fi
