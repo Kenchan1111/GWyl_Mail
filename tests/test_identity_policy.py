@@ -381,10 +381,10 @@ def test_check_alias_helper():
 
 def test_issuer_ok_helper():
     """
-    Test the _issuer_ok helper method
+    Test the _issuer_ok helper method (SPRINT 5: Updated for exact/suffix match)
     """
     policy_data = {
-        "allowed_issuers": ["https://accounts.google.com", "https://github.com"]
+        "allowed_issuers": ["https://accounts.google.com", "https://github.com/login/oauth"]
     }
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
@@ -394,9 +394,12 @@ def test_issuer_ok_helper():
     try:
         policy = IdentityPolicy(temp_path)
 
-        # Test allowed issuer (substring match)
+        # Test exact issuer match
         assert policy._issuer_ok("https://accounts.google.com") is True
         assert policy._issuer_ok("https://github.com/login/oauth") is True
+
+        # Test subdomain match
+        assert policy._issuer_ok("https://api.github.com/login/oauth") is True
 
         # Test not allowed issuer
         assert policy._issuer_ok("https://evil.com") is False
@@ -426,6 +429,100 @@ def test_domain_ok_helper():
 
         # Test not allowed domain
         assert policy._domain_ok("mallory@evil.com") is False
+
+    finally:
+        temp_path.unlink()
+
+
+def test_issuer_exact_match_security():
+    """
+    Test that issuer matching prevents substring attacks (SPRINT 5.2.1).
+
+    Security: Ensures "google.com" does not match "evilgoogle.com" or "google.com.evil.com".
+    Valid subdomains like "accounts.google.com" should still match.
+    """
+    policy_data = {
+        "enforcement_mode": "strict",
+        "allowed_issuers": ["google.com"]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        yaml.dump(policy_data, f)
+        temp_path = Path(f.name)
+
+    try:
+        policy = IdentityPolicy(temp_path)
+
+        # Attack: "evilgoogle.com" should NOT match "google.com" (no dot boundary)
+        result = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="alice@company.com",
+            cert_issuer="https://evilgoogle.com"
+        )
+        assert result["issuer"] is False, "Substring attack should be blocked"
+
+        # Attack: "google.com.evil.com" should NOT match "google.com"
+        result = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="alice@company.com",
+            cert_issuer="https://google.com.evil.com"
+        )
+        assert result["issuer"] is False, "Suffix hijack should be blocked"
+
+        # Attack: "googlemail.com" should NOT match "google.com"
+        result = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="alice@company.com",
+            cert_issuer="https://googlemail.com"
+        )
+        assert result["issuer"] is False, "Similar domain should not match"
+
+        # Valid: exact match
+        result = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="alice@company.com",
+            cert_issuer="https://google.com"
+        )
+        assert result["issuer"] is True, "Exact match should succeed"
+
+        # Valid: subdomain with dot boundary
+        result = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="alice@company.com",
+            cert_issuer="https://accounts.google.com"
+        )
+        assert result["issuer"] is True, "Valid subdomain should match"
+
+    finally:
+        temp_path.unlink()
+
+
+def test_issuer_suffix_match_with_dot_boundary():
+    """
+    Test that issuer suffix matching requires dot boundary (SPRINT 5.2.1).
+    """
+    policy_data = {
+        "enforcement_mode": "strict",
+        "allowed_issuers": ["example.com"]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        yaml.dump(policy_data, f)
+        temp_path = Path(f.name)
+
+    try:
+        policy = IdentityPolicy(temp_path)
+
+        # Valid: subdomain with dot boundary
+        assert policy._issuer_ok("https://api.example.com") is True
+        assert policy._issuer_ok("https://accounts.example.com") is True
+
+        # Invalid: no dot boundary
+        assert policy._issuer_ok("https://evilexample.com") is False
+        assert policy._issuer_ok("https://example.com.evil.com") is False
+
+        # Valid: exact match
+        assert policy._issuer_ok("https://example.com") is True
 
     finally:
         temp_path.unlink()

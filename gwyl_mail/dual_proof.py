@@ -13,6 +13,7 @@ from .sigstore_timestamp import sign_and_timestamp
 from .ots_manager import OTSManager
 from .validation import ProofValidator, ProofValidationError
 from .policy_utils import compute_policy_hash, extract_policy_metadata
+from .dsse_signer import sign_proof_dsse
 
 
 def _utcnow_iso() -> str:
@@ -27,7 +28,7 @@ def _hash_email(addr: str) -> str:
     return _sha256_hex(addr.lower().encode())
 
 
-def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Path] = None) -> Dict[str, Any]:
+def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Path] = None, dsse: bool = True) -> Dict[str, Any]:
     content_hash = GWylCanonical.hash(message)
     ts = _utcnow_iso()
 
@@ -55,6 +56,15 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             # Fallback: no policy (warn mode compatible)
             policy_data = None
 
+    # Signer metadata (SPRINT 5: Extract at creation time)
+    signer_data: Optional[Dict[str, Any]] = None
+    if sigstore.cert_identity or sigstore.cert_issuer:
+        signer_data = {
+            "identity": sigstore.cert_identity,
+            "issuer": sigstore.cert_issuer,
+            "extracted_at": ts,
+        }
+
     proof: Dict[str, Any] = {
         "version": "0.2.0",
         "message_id": _sha256_hex((identity + ts + content_hash).encode())[:36],
@@ -64,6 +74,7 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             "nfc_scope": "filenames_only",
             "content_hash": content_hash,
         },
+        "signer": signer_data,
         "policy": policy_data,
         "sigstore": {
             "bundle_path": sigstore.bundle_path,
@@ -120,5 +131,10 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
     result = validator.validate(proof)
     if not result.valid:
         raise ProofValidationError(f"Generated proof invalid: {result.error}")
+
+    # DSSE signature (wrap proof in DSSE envelope if requested)
+    if dsse:
+        envelope = sign_proof_dsse(proof, identity)
+        return envelope
 
     return proof

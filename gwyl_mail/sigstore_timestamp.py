@@ -29,6 +29,7 @@ class SigstoreProof:
     bundle_path: Optional[str]
     bundle_digest: Optional[str]
     cert_issuer: Optional[str]
+    cert_identity: Optional[str]  # Email extracted from certificate
     rekor_entry: Optional[str]
     rekor_timestamp: Optional[int]
     rekor_log_index: Optional[int]
@@ -53,6 +54,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
             bundle_path=None,
             bundle_digest=None,
             cert_issuer=None,
+            cert_identity=None,
             rekor_entry=None,
             rekor_timestamp=None,
             rekor_log_index=None,
@@ -93,6 +95,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
                 bundle_path=None,
                 bundle_digest=None,
                 cert_issuer=None,
+                cert_identity=None,
                 rekor_entry=None,
                 rekor_timestamp=None,
                 rekor_log_index=None,
@@ -102,6 +105,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
                 bundle_path=None,
                 bundle_digest=None,
                 cert_issuer=None,
+                cert_identity=None,
                 rekor_entry=None,
                 rekor_timestamp=None,
                 rekor_log_index=None,
@@ -133,10 +137,24 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
             rekor_entry_str = None
 
         bundle_digest = _sha256_file(bundle_path)
+
+        # Extract identity from bundle (SPRINT 5: Extract at creation time)
+        cert_identity_extracted: Optional[str] = None
+        cert_issuer_extracted: Optional[str] = None
+        try:
+            from .sigstore_identity import extract_identity_from_bundle
+            sig_identity = extract_identity_from_bundle(bundle_path)
+            cert_identity_extracted = sig_identity.email
+            cert_issuer_extracted = sig_identity.issuer or issuer
+        except Exception:
+            # Fallback: use best-effort issuer from bundle parsing above
+            cert_issuer_extracted = issuer
+
         return SigstoreProof(
             bundle_path=str(bundle_path),
             bundle_digest=bundle_digest,
-            cert_issuer=issuer,
+            cert_issuer=cert_issuer_extracted,
+            cert_identity=cert_identity_extracted,
             rekor_entry=rekor_entry_str,
             rekor_timestamp=rekor_ts,
             rekor_log_index=log_index,
@@ -146,6 +164,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
             bundle_path=None,
             bundle_digest=None,
             cert_issuer=None,
+            cert_identity=None,
             rekor_entry=None,
             rekor_timestamp=None,
             rekor_log_index=None,

@@ -54,8 +54,45 @@ class IdentityPolicy:
         return from_email.lower() in allowed or from_email.lower() == cert_subject.lower()
 
     def _issuer_ok(self, issuer: str) -> bool:
+        """Check if issuer is allowed (exact match or suffix match with dot boundary).
+
+        Security: Prevents substring attacks like "google.com" matching "evil-accounts.google.com".
+        Uses exact match or suffix match with dot boundary: "accounts.google.com" matches "google.com"
+        but "evilgoogle.com" does not match "google.com".
+        """
         allowed = self.config.allowed_issuers or []
-        return True if not allowed else any(i in issuer for i in allowed)
+        if not allowed:
+            return True
+
+        issuer_lower = issuer.lower()
+        for allowed_issuer in allowed:
+            allowed_lower = allowed_issuer.lower()
+
+            # Extract domain from URL if present (remove https://, http://, etc.)
+            issuer_domain = issuer_lower
+            for prefix in ['https://', 'http://']:
+                if issuer_domain.startswith(prefix):
+                    issuer_domain = issuer_domain[len(prefix):]
+                    break
+
+            allowed_domain = allowed_lower
+            for prefix in ['https://', 'http://']:
+                if allowed_domain.startswith(prefix):
+                    allowed_domain = allowed_domain[len(prefix):]
+                    break
+
+            # Remove trailing slash if present
+            issuer_domain = issuer_domain.rstrip('/')
+            allowed_domain = allowed_domain.rstrip('/')
+
+            # Exact match
+            if issuer_domain == allowed_domain:
+                return True
+            # Suffix match with dot boundary (e.g., "accounts.google.com" matches "google.com")
+            if issuer_domain.endswith('.' + allowed_domain):
+                return True
+
+        return False
 
     def _domain_ok(self, email: str) -> bool:
         allowed = self.config.allowed_domains or []

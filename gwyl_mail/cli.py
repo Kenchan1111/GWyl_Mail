@@ -16,6 +16,7 @@ from .canonical import GWylCanonical
 from .dual_proof import create_proof
 from .ots_manager import OTSManager
 from .sigstore_identity import extract_identity_from_bundle
+from .dsse_signer import verify_proof_dsse, extract_proof_from_dsse
 
 
 def cmd_canonical(args: argparse.Namespace) -> int:
@@ -29,11 +30,15 @@ def cmd_canonical(args: argparse.Namespace) -> int:
 def cmd_proof(args: argparse.Namespace) -> int:
     data = Path(args.eml).read_bytes()
     msg = BytesParser(policy=policy.default).parsebytes(data)
-    proof = create_proof(msg, identity=args.identity)
+    use_dsse = not getattr(args, 'no_dsse', False)
+    proof = create_proof(msg, identity=args.identity, dsse=use_dsse)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(proof, ensure_ascii=False, indent=2))
-    print(f"Proof written to {out}")
+    if use_dsse:
+        print(f"DSSE-signed proof written to {out}")
+    else:
+        print(f"Proof written to {out}")
     return 0
 
 
@@ -74,12 +79,31 @@ def cmd_verify(args: argparse.Namespace) -> int:
     reasons: List[str] = []
 
     try:
-        proof = json.loads(proof_path.read_text())
+        proof_data = json.loads(proof_path.read_text())
     except Exception as e:
         entry = {"timestamp": now, "action": "verify", "status": "error", "error": f"invalid_proof_json:{e}"}
         _append_audit(entry)
         print(json.dumps({"error": "invalid_proof_json"}))
         return 1
+
+    # Check if DSSE envelope (has "payload" and "payloadType")
+    dsse_verified = False
+    dsse_error = None
+    if "payload" in proof_data and "payloadType" in proof_data:
+        # DSSE envelope detected
+        verified, proof, error = verify_proof_dsse(proof_data)
+        dsse_verified = verified
+        dsse_error = error
+        if not verified:
+            reasons.append(f"dsse_verification_failed: {error or 'unknown'}")
+            if strict:
+                entry = {"timestamp": now, "action": "verify", "status": "error", "error": f"dsse_verification_failed:{error}"}
+                _append_audit(entry)
+                print(json.dumps({"error": "dsse_verification_failed", "details": error}))
+                return 1
+    else:
+        # Plain proof JSON (backward compat)
+        proof = proof_data
 
     # 1) Canonical
     try:
@@ -242,6 +266,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
         "canonical": canonical_ok,
         "sigstore_bundle": bundle_ok,
         "ots": ots_ok,
+        "dsse_signed": dsse_verified,
         "trust_level": trust,
         "reasons": reasons,
         "identity": bundle_identity,
@@ -277,6 +302,7 @@ def main() -> int:
     pr.add_argument("eml")
     pr.add_argument("--identity", required=True)
     pr.add_argument("--out", default=".gwyl_mail/proofs/proof.json")
+    pr.add_argument("--no-dsse", action="store_true", help="Disable DSSE signature (backward compatibility)")
     pr.set_defaults(func=cmd_proof)
 
     up = sub.add_parser("upgrade-ots", help="Upgrade an OTS proof file")
