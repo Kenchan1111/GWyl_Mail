@@ -97,6 +97,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     policy_path: Optional[Path] = Path(args.policy) if getattr(args, "policy", None) else None
     expect_identity: Optional[str] = getattr(args, "expect_identity", None)
     allow_issuer: Optional[str] = getattr(args, "allow_issuer", None)
+    profile_override: Optional[str] = getattr(args, "profile_override", None)
 
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     reasons: List[str] = []
@@ -128,18 +129,36 @@ def cmd_verify(args: argparse.Namespace) -> int:
         # Plain proof JSON (backward compat)
         proof = proof_data
 
-    # 1) Canonical (SPRINT 6.2.1: Use profile from proof)
+    # 1) Canonical (SPRINT 6.2.1: Use profile from proof or override)
     try:
         msg = BytesParser(policy=policy.default).parsebytes(eml.read_bytes())
         expected_hash = (proof.get("canonical", {}) or {}).get("content_hash")
         # Extract profile from proof (default to "strict" for backward compat)
-        proof_profile = (proof.get("canonical", {}) or {}).get("profile", "strict")
-        actual_hash = GWylCanonical.hash(msg, profile=proof_profile)
+        canonical_section = proof.get("canonical", {}) or {}
+        proof_profile = canonical_section.get("profile")
+
+        # Apply profile override if provided (ChatGPT recommendation #6)
+        if profile_override:
+            effective_profile = profile_override
+            if proof_profile and proof_profile != profile_override:
+                print(f"⚠️  Profile override: Using '{profile_override}' instead of proof's '{proof_profile}'", file=sys.stderr)
+                reasons.append(f"profile_overridden_{proof_profile}_to_{profile_override}")
+            else:
+                reasons.append(f"profile_override_{profile_override}")
+        else:
+            # Warn if profile missing (backward compat with old proofs)
+            if proof_profile is None:
+                proof_profile = "strict"
+                print("⚠️  Warning: Proof missing 'profile' field, assuming 'strict' (backward compatibility)", file=sys.stderr)
+                reasons.append("profile_missing_assumed_strict")
+            effective_profile = proof_profile
+
+        actual_hash = GWylCanonical.hash(msg, profile=effective_profile)
         canonical_ok = (expected_hash == actual_hash)
         if canonical_ok:
-            reasons.append(f"canonical_ok(profile={proof_profile})")
+            reasons.append(f"canonical_ok(profile={effective_profile})")
         else:
-            reasons.append(f"canonical_mismatch(profile={proof_profile})")
+            reasons.append(f"canonical_mismatch(profile={effective_profile})")
     except Exception as e:
         canonical_ok = False
         reasons.append("canonical_error")
@@ -362,6 +381,7 @@ def main() -> int:
     vf.add_argument("--policy", help="Path to identity policy YAML")
     vf.add_argument("--expect-identity", help="Expected signer identity (email)")
     vf.add_argument("--allow-issuer", help="Allowed OIDC issuer substring")
+    vf.add_argument("--profile-override", choices=["strict", "relaxed"], help="Override canonicalization profile (useful for old proofs failing due to MTA modifications)")
     vf.set_defaults(func=cmd_verify)
 
     args = p.parse_args()

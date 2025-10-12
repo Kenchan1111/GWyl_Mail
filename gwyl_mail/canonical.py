@@ -20,15 +20,32 @@ except Exception:
 # Default canonical headers (strict profile)
 CANONICAL_HEADERS = ["from", "to", "subject", "date", "message-id"]
 
-# MTA headers to exclude in relaxed profile (Sprint 6.2.1)
+# MTA headers to exclude in relaxed profile (Sprint 6.2.1, extended per ChatGPT)
 RELAXED_EXCLUDED_HEADERS = [
+    # Routing headers
     "received", "return-path", "delivered-to", "x-original-to",
+    # Authentication headers
     "dkim-signature", "arc-seal", "arc-message-signature", "arc-authentication-results",
-    "authentication-results", "x-spam-status", "x-spam-score", "x-spam-flag",
-    "x-virus-scanned", "x-spam-checker-version", "x-mailer", "x-originating-ip",
-    "x-received", "x-priority", "x-msmail-priority", "importance",
-    "x-google-smtp-source", "x-gm-message-state", "list-id", "list-unsubscribe",
-    "list-subscribe", "list-post", "auto-submitted", "x-auto-response-suppress",
+    "authentication-results", "received-spf", "domainkey-signature",
+    # Spam/virus filtering
+    "x-spam-status", "x-spam-score", "x-spam-flag", "x-spam-level", "x-spam-report",
+    "x-virus-scanned", "x-spam-checker-version",
+    # MTA-specific headers
+    "x-mailer", "x-originating-ip", "x-received", "x-priority", "x-msmail-priority",
+    "importance", "x-google-smtp-source", "x-gm-message-state",
+    # Microsoft Exchange headers
+    "x-ms-exchange-organization-authas", "x-ms-exchange-organization-authsource",
+    "x-ms-exchange-organization-authmechanism", "x-ms-has-attach", "x-ms-tnef-correlator",
+    # AWS SES headers
+    "x-ses-outgoing", "x-ses-receipt-id", "x-ses-configuration-set",
+    # Feedback/security vendor headers
+    "x-feedback-id", "x-proofpoint-virus-version", "x-proofpoint-spam-details",
+    "x-barracuda-envelope-from", "x-barracuda-apparent-source-ip",
+    # List management
+    "list-id", "list-unsubscribe", "list-subscribe", "list-post",
+    # Auto-reply
+    "auto-submitted", "x-auto-response-suppress",
+    # MIME version (can be added by MTA)
     "mime-version"
 ]
 

@@ -57,6 +57,8 @@ profiles:
       - arc-message-signature
       - arc-authentication-results
       - authentication-results
+      - received-spf
+      - domainkey-signature
 
       # Spam/virus filtering headers
       - x-spam-status
@@ -64,8 +66,10 @@ profiles:
       - x-spam-flag
       - x-virus-scanned
       - x-spam-checker-version
+      - x-spam-level
+      - x-spam-report
 
-      # MTA-specific headers
+      # MTA-specific headers (ChatGPT recommendation: extend coverage)
       - x-mailer
       - x-originating-ip
       - x-received
@@ -74,6 +78,19 @@ profiles:
       - importance
       - x-google-smtp-source
       - x-gm-message-state
+      - x-ms-exchange-organization-authas
+      - x-ms-exchange-organization-authsource
+      - x-ms-exchange-organization-authmechanism
+      - x-ms-has-attach
+      - x-ms-tnef-correlator
+      - x-ses-outgoing
+      - x-ses-receipt-id
+      - x-ses-configuration-set
+      - x-feedback-id
+      - x-proofpoint-virus-version
+      - x-proofpoint-spam-details
+      - x-barracuda-envelope-from
+      - x-barracuda-apparent-source-ip
 
       # List management headers
       - list-id
