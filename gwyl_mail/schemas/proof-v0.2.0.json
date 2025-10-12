@@ -7,6 +7,19 @@
   "properties": {
     "version": {"type": "string", "const": "0.2.0"},
     "message_id": {"type": "string"},
+    "signer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "identity": {"type": ["string", "null"]},
+            "issuer": {"type": ["string", "null"]},
+            "extracted_at": {"type": "string"}
+          }
+        },
+        {"type": "null"}
+      ]
+    },
     "canonical": {
       "type": "object",
       "required": ["algorithm", "content_hash"],
@@ -59,6 +72,15 @@
         "trust_level": {"type": "string"}
       }
     },
+    "coherence": {
+      "type": "object",
+      "properties": {
+        "rekor_ots_delta_seconds": {"type": ["integer", "null"]},
+        "rekor_ots_delta_hours": {"type": ["number", "null"]},
+        "threshold_hours": {"type": ["integer", "null"]},
+        "valid": {"type": ["boolean", "null"]}
+      }
+    },
     "anti_replay": {
       "type": "object",
       "required": ["nonce", "expires_at"],
@@ -74,6 +96,12 @@
       "properties": {
         "metadata_disclosure": {"type": "string"},
         "sender_hash": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "from_hash": {
           "oneOf": [
             {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             {"type": "null"}

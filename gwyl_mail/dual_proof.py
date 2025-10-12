@@ -32,6 +32,11 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
     content_hash = GWylCanonical.hash(message)
     ts = _utcnow_iso()
 
+    # SPRINT 5.3.2: Extract EML From header for privacy metadata
+    from email.utils import parseaddr
+    from_header = message.get("From", "")
+    from_email = parseaddr(from_header)[1] if from_header else None
+
     # Sigstore (best effort; offline if unavailable)
     sigstore = sign_and_timestamp(content_hash.encode(), identity)
 
@@ -108,6 +113,7 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
         "privacy": {
             "metadata_disclosure": "minimal",
             "sender_hash": _hash_email(identity),
+            "from_hash": _hash_email(from_email) if from_email else None,  # SPRINT 5.3.2
             "recipient_hash": _hash_email(message.get("To", "")) if message.get("To") else None,
             "salted": False,
             "salt_id": None,

@@ -81,11 +81,16 @@ class OTSManager:
         """
         Extract real Bitcoin timestamp using ots info
 
+        SPRINT 5.2.3: Resilient OTS parsing with multiple strategies:
+        1. Try multiple regex patterns for different OTS output formats
+        2. JSON parsing fallback for structured output
+        3. Graceful degradation - returns None on parse failure
+
         ChatGPT Critical Issue #2: Use ots info to get the actual
         Bitcoin block timestamp instead of approximating with now().
 
         Returns:
-            ISO timestamp string or None
+            ISO timestamp string or None if parsing fails
         """
         try:
             # Run ots info to get detailed timestamp information
@@ -101,52 +106,93 @@ class OTSManager:
 
             output = res.stdout or ""
 
-            # Parse the output for attestation timestamp
-            # Example output format from ots info:
-            # "Bitcoin block height: 829456"
-            # Or from verify: "as of Thu 11 Jan 2025 20:15:43 UTC"
+            # SPRINT 5.2.3: Try multiple parsing strategies in order of reliability
 
-            # Try to extract timestamp from different formats
-            # Format 1: "as of Thu 11 Jan 2025 20:15:43 UTC"
-            time_match = re.search(
-                r'as of\s+([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{2}:\d{2}:\d{2})',
-                output
-            )
-            if time_match:
-                time_str = time_match.group(1)
-                try:
-                    # Parse format: "Thu 11 Jan 2025 20:15:43"
-                    dt = datetime.strptime(time_str, "%a %d %b %Y %H:%M:%S")
-                    dt = dt.replace(tzinfo=timezone.utc)
-                    return dt.isoformat().replace("+00:00", "Z")
-                except ValueError:
-                    pass
+            # Strategy 1: JSON parsing (most reliable if available)
+            try:
+                import json
+                # Try to find JSON block in output
+                json_start = output.find('{')
+                json_end = output.rfind('}')
+                if json_start >= 0 and json_end > json_start:
+                    json_str = output[json_start:json_end + 1]
+                    data = json.loads(json_str)
+                    # Look for timestamp fields in JSON
+                    for key in ['timestamp', 'confirmed_at', 'block_time', 'time']:
+                        if key in data:
+                            ts_value = data[key]
+                            if isinstance(ts_value, int) and ts_value > 1000000000:
+                                # Unix timestamp
+                                dt = datetime.fromtimestamp(ts_value, tz=timezone.utc)
+                                return dt.isoformat().replace("+00:00", "Z")
+                            elif isinstance(ts_value, str):
+                                # Try parsing as ISO string
+                                dt = datetime.fromisoformat(ts_value.replace('Z', '+00:00'))
+                                return dt.isoformat().replace("+00:00", "Z")
+            except Exception:
+                pass
 
-            # Format 2: ISO format "2025-01-11T20:15:43Z" or similar
-            iso_match = re.search(
-                r'(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})',
-                output
-            )
-            if iso_match:
-                time_str = iso_match.group(1).replace(' ', 'T')
-                try:
-                    dt = datetime.fromisoformat(time_str)
-                    if dt.tzinfo is None:
+            # Strategy 2: Regex patterns for different OTS output formats
+            # Pattern 1: "as of Thu 11 Jan 2025 20:15:43 UTC"
+            time_patterns = [
+                (r'as of\s+([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{2}:\d{2}:\d{2})', "%a %d %b %Y %H:%M:%S"),
+                # Pattern 2: "on Wed Jan 15 2025 12:34:56"
+                (r'on\s+([A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2})', "%a %b %d %Y %H:%M:%S"),
+                # Pattern 3: "at 2025-01-15 12:34:56"
+                (r'at\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', "%Y-%m-%d %H:%M:%S"),
+            ]
+
+            for pattern, date_format in time_patterns:
+                time_match = re.search(pattern, output, re.IGNORECASE)
+                if time_match:
+                    time_str = time_match.group(1)
+                    try:
+                        dt = datetime.strptime(time_str, date_format)
                         dt = dt.replace(tzinfo=timezone.utc)
-                    return dt.isoformat().replace("+00:00", "Z")
-                except ValueError:
-                    pass
+                        return dt.isoformat().replace("+00:00", "Z")
+                    except ValueError:
+                        continue
 
-            # Format 3: Unix timestamp
-            unix_match = re.search(r'timestamp:\s*(\d{10,})', output, re.IGNORECASE)
-            if unix_match:
-                unix_ts = int(unix_match.group(1))
-                dt = datetime.fromtimestamp(unix_ts, tz=timezone.utc)
-                return dt.isoformat().replace("+00:00", "Z")
+            # Strategy 3: ISO format "2025-01-11T20:15:43Z" or similar
+            iso_patterns = [
+                r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?)',
+                r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
+            ]
 
-        except Exception:
-            pass
+            for pattern in iso_patterns:
+                iso_match = re.search(pattern, output)
+                if iso_match:
+                    time_str = iso_match.group(1).replace(' ', 'T')
+                    try:
+                        dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                        return dt.isoformat().replace("+00:00", "Z")
+                    except ValueError:
+                        continue
 
+            # Strategy 4: Unix timestamp variations
+            unix_patterns = [
+                r'timestamp:\s*(\d{10,})',
+                r'time:\s*(\d{10,})',
+                r'block_time:\s*(\d{10,})',
+                r'confirmed:\s*(\d{10,})',
+            ]
+
+            for pattern in unix_patterns:
+                unix_match = re.search(pattern, output, re.IGNORECASE)
+                if unix_match:
+                    try:
+                        unix_ts = int(unix_match.group(1))
+                        dt = datetime.fromtimestamp(unix_ts, tz=timezone.utc)
+                        return dt.isoformat().replace("+00:00", "Z")
+                    except (ValueError, OSError):
+                        continue
+
+        except subprocess.TimeoutExpired:
+            logging.warning(f"OTS info timeout for {proof_file}")
+        except Exception as e:
+            logging.debug(f"OTS timestamp extraction failed: {e}")
+
+        # Graceful degradation: return None if all strategies fail
         return None
 
     @staticmethod

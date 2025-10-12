@@ -47,13 +47,34 @@ def _has(cmd: str) -> bool:
 
 
 def _safe_in_dir(target: Path, base: Path) -> bool:
+    """Check if target path is safely within base directory.
+
+    Security (SPRINT 5.2.2):
+    - Explicitly blocks symlinks to prevent directory traversal
+    - Uses resolve() to get absolute canonical paths
+    - Rejects any path outside base directory
+    - No permissive fallback to ensure strict validation
+
+    Returns False if target contains symlinks or is outside base.
+    """
     try:
-        return target.resolve().is_relative_to(base.resolve())
-    except Exception:
-        # Python < 3.9 fallback
-        t = str(target.resolve())
-        b = str(base.resolve())
-        return t.startswith(b + "/") or t == b
+        # Resolve both paths to absolute canonical paths
+        target_resolved = target.resolve()
+        base_resolved = base.resolve()
+
+        # Check if any component in target path is a symlink
+        # Walk from target up to the common parent
+        check_path = target
+        while check_path != check_path.parent:
+            if check_path.is_symlink():
+                return False
+            check_path = check_path.parent
+
+        # Check if target is within base directory
+        return target_resolved.is_relative_to(base_resolved)
+    except (ValueError, OSError, RuntimeError):
+        # Any error (permission denied, path doesn't exist, etc.) = reject
+        return False
 
 
 def _append_audit(entry: Dict[str, Any]) -> None:
@@ -237,22 +258,37 @@ def cmd_verify(args: argparse.Namespace) -> int:
             policy_ok = False if strict else policy_ok
 
     # Coherence Rekor/OTS (best-effort if timestamps available)
+    # SPRINT 5.3.1: Expose coherence delta details for transparency
     coherence_ok = True
+    coherence_details: Optional[Dict[str, Any]] = None
     rekor_ts = (proof.get("sigstore", {}) or {}).get("rekor_timestamp")
     ots_ts = (proof.get("opentimestamps", {}) or {}).get("confirmed_at")
     if rekor_ts and ots_ts:
         try:
             rt = datetime.utcfromtimestamp(int(rekor_ts))
             ot = datetime.fromisoformat(str(ots_ts).replace('Z', '+00:00'))
-            delta_h = abs((rt - ot).total_seconds()) / 3600.0
+            delta_seconds = abs((rt - ot).total_seconds())
+            delta_h = delta_seconds / 3600.0
+
+            # Build detailed coherence information (SPRINT 5.3.1)
+            coherence_details = {
+                "rekor_timestamp": rt.isoformat().replace("+00:00", "Z"),
+                "ots_timestamp": ot.isoformat().replace("+00:00", "Z"),
+                "delta_seconds": int(delta_seconds),
+                "delta_hours": round(delta_h, 2),
+                "threshold_hours": 24,
+                "within_threshold": delta_h <= 24
+            }
+
             if delta_h <= 24:
                 reasons.append("coherence_ok")
                 coherence_ok = True
             else:
                 reasons.append("coherence_failed")
                 coherence_ok = False
-        except Exception:
+        except Exception as e:
             reasons.append("coherence_unknown")
+            coherence_details = {"error": f"timestamp_parse_failed: {str(e)}"}
 
     # Trust level
     if ots_ok:
@@ -272,6 +308,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
         "identity": bundle_identity,
         "issuer": bundle_issuer,
     }
+
+    # SPRINT 5.3.1: Add coherence details if available
+    if coherence_details is not None:
+        summary["coherence_details"] = coherence_details
 
     status = "ok" if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else "fail"
     audit = {"timestamp": now, "action": "verify", "status": status, **summary}
