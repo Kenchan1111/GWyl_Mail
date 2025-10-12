@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
@@ -103,11 +104,12 @@ def cmd_verify(args: argparse.Namespace) -> int:
         bp = Path(bundle_path)
         base = Path(".gwyl_mail/proofs/sigstore")
         if _safe_in_dir(bp, base) and bp.exists():
-            tmp = Path(".gwyl_mail/proofs/_tmp_blob.txt")
-            tmp.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text((proof.get("canonical", {}) or {}).get("content_hash", ""))
+            # Use unique temp file to avoid collisions
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as tmp_file:
+                tmp_file.write((proof.get("canonical", {}) or {}).get("content_hash", ""))
+                tmp_path = tmp_file.name
             try:
-                res = subprocess.run(["cosign", "verify-blob", str(tmp), "--bundle", str(bp)], capture_output=True, text=True, timeout=30)
+                res = subprocess.run(["cosign", "verify-blob", tmp_path, "--bundle", str(bp)], capture_output=True, text=True, timeout=30)
                 bundle_ok = (res.returncode == 0)
                 if bundle_ok:
                     # SPRINT 3: Use robust identity extraction instead of heuristic
@@ -144,7 +146,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 reasons.append("sigstore_timeout")
             finally:
                 try:
-                    tmp.unlink()
+                    Path(tmp_path).unlink(missing_ok=True)
                 except Exception:
                     pass
         else:
@@ -242,6 +244,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
         "ots": ots_ok,
         "trust_level": trust,
         "reasons": reasons,
+        "identity": bundle_identity,
+        "issuer": bundle_issuer,
     }
 
     status = "ok" if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else "fail"

@@ -10,3 +10,7 @@
 {"timestamp":"2025-10-12T10:47:05.951487Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
 {"timestamp":"2025-10-12T10:54:19.616662Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"]}
 {"timestamp":"2025-10-12T10:54:19.658375Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"]}
+{"timestamp":"2025-10-12T11:13:55.936491Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"],"identity":null,"issuer":null}
+{"timestamp":"2025-10-12T11:13:55.983107Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"],"identity":null,"issuer":null}
+{"timestamp":"2025-10-12T11:43:51.907303Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","bundle_path_invalid"],"identity":null,"issuer":null}
+{"timestamp":"2025-10-12T11:43:51.949135Z","action":"verify","status":"fail","canonical":false,"sigstore_bundle":false,"ots":false,"trust_level":"LOW","reasons":["canonical_mismatch","ots_pending"],"identity":null,"issuer":null}

@@ -109,10 +109,10 @@ def compute_hash(msg: EmailMessage) -> str:
 
 class GWylCanonical:
     @staticmethod
-    def hash(message: EmailMessage | str) -> str:
+    def hash(message: EmailMessage | bytes | str) -> str:
         if isinstance(message, EmailMessage):
             return compute_hash(message)
-        # If raw string provided, parse to EmailMessage
+        # If raw bytes/string provided, parse to EmailMessage
         if isinstance(message, bytes):
             m = BytesParser(policy=policy.default).parsebytes(message)
         else:
