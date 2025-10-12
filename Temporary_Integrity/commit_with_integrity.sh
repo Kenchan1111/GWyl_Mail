@@ -40,19 +40,20 @@ fi
 # ============================================================================
 echo ""
 echo "[2/7] Generating new baseline for current state..."
-# Robust scan (NUL-separated) + additional excludes to avoid noisy mismatches
-find . -type f \( -name "*.py" -o -name "*.md" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.toml" -o -name "*.sh" -o -name "*.txt" \) \
-  -not -path "./.git/*" \
-  -not -path "./.venv/*" \
-  -not -path "./htmlcov/*" \
-  -not -path "./__pycache__/*" \
-  -not -path "./.pytest_cache/*" \
-  -not -path "./.gwyl_mail/*" \
-  -not -path "./logs/*" \
-  -not -path "./.claude/*" \
-  -print0 \
-  | sort -z \
-  | xargs -0 sha256sum > "$BASELINE_FILE"
+# Use git ls-files to get ALL tracked files (ensures consistency with git)
+# Exclude only the baseline files themselves and generated directories
+# Process each file and add ./ prefix to match committed baseline format
+git ls-files \
+  | grep -v "^SECURITY_INTEGRITY_BASELINE.sha256$" \
+  | grep -v "^\.gwyl_mail/" \
+  | grep -v "^__pycache__/" \
+  | grep -v "^\.pytest_cache/" \
+  | while IFS= read -r file; do
+      if [ -f "$file" ]; then
+        sha256sum "$file" | sed "s|  |  ./|"
+      fi
+    done \
+  | sort -k2 > "$BASELINE_FILE"
 
 FILE_COUNT=$(wc -l < "$BASELINE_FILE")
 NEW_BASELINE_HASH=$(sha256sum "$BASELINE_FILE" | cut -d' ' -f1)
@@ -70,11 +71,12 @@ if [ -f "$BASELINE_COMMITTED" ]; then
   # Count changes
   ADDED=$(comm -13 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | wc -l)
   REMOVED=$(comm -23 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | wc -l)
-  MODIFIED=$(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | while read file; do
-    OLD_HASH=$(grep " $file$" "$BASELINE_COMMITTED" | cut -d' ' -f1)
-    NEW_HASH=$(grep " $file$" "$BASELINE_FILE" | cut -d' ' -f1)
-    [ "$OLD_HASH" != "$NEW_HASH" ] && echo "$file"
-  done | wc -l)
+  MODIFIED=$(while IFS= read -r file; do
+    # Extract hashes by matching exact end-of-line path (robust to spaces/specials)
+    OLD_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_COMMITTED")
+    NEW_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_FILE")
+    [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" != "$NEW_HASH" ] && echo "$file"
+  done < <(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort)) | wc -l)
 
   UNCHANGED=$((FILE_COUNT - MODIFIED - ADDED))
 
@@ -88,17 +90,17 @@ if [ -f "$BASELINE_COMMITTED" ]; then
   echo ""
   echo "[4/7] Verifying chain of trust (old = old)..."
   CHAIN_OK=true
-  comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | while read file; do
-    OLD_HASH=$(grep " $file$" "$BASELINE_COMMITTED" | cut -d' ' -f1)
-    NEW_HASH=$(grep " $file$" "$BASELINE_FILE" | cut -d' ' -f1)
-    if [ "$OLD_HASH" == "$NEW_HASH" ]; then
+  while IFS= read -r file; do
+    OLD_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_COMMITTED")
+    NEW_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_FILE")
+    if [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" = "$NEW_HASH" ]; then
       # File unchanged - hash must match history
-      if ! grep -q "^$OLD_HASH  $file$" "$BASELINE_COMMITTED"; then
+      if ! awk -v f="$file" -v h="$OLD_HASH" 'substr($0, length($0)-length(f)+1) == f && $1 == h {found=1} END{exit found?0:1}' "$BASELINE_COMMITTED"; then
         echo "      ❌ CHAIN BROKEN: $file hash mismatch with history!"
         CHAIN_OK=false
       fi
     fi
-  done
+  done < <(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort))
 
   if [ "$CHAIN_OK" = true ]; then
     echo "      ✅ Chain of trust intact"
@@ -112,15 +114,15 @@ if [ -f "$BASELINE_COMMITTED" ]; then
   if [ "$MODIFIED" -gt 0 ]; then
     echo ""
     echo "      Modified files (showing first 10):"
-    comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) | while read file; do
-      OLD_HASH=$(grep " $file$" "$BASELINE_COMMITTED" | cut -d' ' -f1)
-      NEW_HASH=$(grep " $file$" "$BASELINE_FILE" | cut -d' ' -f1)
-      if [ "$OLD_HASH" != "$NEW_HASH" ]; then
+    while IFS= read -r file; do
+      OLD_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_COMMITTED")
+      NEW_HASH=$(awk -v f="$file" 'substr($0, length($0)-length(f)+1) == f {print $1; exit}' "$BASELINE_FILE")
+      if [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" != "$NEW_HASH" ]; then
         echo "         • $file"
         echo "           Old: ${OLD_HASH:0:16}..."
         echo "           New: ${NEW_HASH:0:16}..."
       fi
-    done | head -30
+    done < <(comm -12 <(cut -d' ' -f3- "$BASELINE_COMMITTED" | sort) <(cut -d' ' -f3- "$BASELINE_FILE" | sort) ) | head -30
   fi
 else
   echo "      ⚠️  First commit - no comparison possible"
