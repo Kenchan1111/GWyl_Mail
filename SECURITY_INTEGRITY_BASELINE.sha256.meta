@@ -1,5 +1,5 @@
-baseline_committed_sha256=29c07905263a528e681a8c1e5f26cccf953bf9038b144292f7e7fed457742ab7
+baseline_committed_sha256=c78de2a78962af92d260d3739737514536e2ca76b0de1eba0ba7d66a572f75bd
 baseline_committed_file=SECURITY_INTEGRITY_BASELINE.sha256.committed
-baseline_committed_lines=85
-commit_hash=3d8728f
-committed_at=2025-10-12T19:43:46Z
+baseline_committed_lines=86
+commit_hash=d8434a1
+committed_at=2025-10-13T21:23:28Z
