@@ -9,6 +9,7 @@ OpenTimestamps calendar.
 Exit code: 0 when all required checks pass, 1 otherwise. Network checks never
 fail the command on their own — they are informational.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -153,7 +154,9 @@ def _render(report: DoctorReport) -> str:
     else:
         missing = [r.name for r in report.results if r.required and not r.ok]
         lines.append(f"FAILED: missing required dependencies: {', '.join(missing)}")
-        lines.append("Without them, 'create-proof' only works with --allow-degraded (reduced guarantees).")
+        lines.append(
+            "Without them, 'create-proof' only works with --allow-degraded (reduced guarantees)."
+        )
     return "\n".join(lines)
 
 

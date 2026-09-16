@@ -8,37 +8,39 @@ Uses sigstore-python library to properly parse bundle and extract:
 
 Reference: Sprint 3 - ChatGPT critical security issue #1
 """
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 try:
-    from sigstore.models import Bundle, InvalidBundle
-    from sigstore._internal.rekor.client import RekorClient
     from cryptography import x509
     from cryptography.x509.oid import ExtensionOID, NameOID
+    from sigstore._internal.rekor.client import RekorClient
+    from sigstore.models import Bundle, InvalidBundle
 except ImportError:
     Bundle = None  # type: ignore
     InvalidBundle = None  # type: ignore
-    RekorClient = None
-    x509 = None
-    ExtensionOID = None
-    NameOID = None
+    RekorClient = None  # type: ignore[assignment, misc]
+    x509 = None  # type: ignore[assignment, misc]
+    ExtensionOID = None  # type: ignore[assignment, misc]
+    NameOID = None  # type: ignore[assignment, misc]
 
 
 @dataclass
 class SignatureIdentity:
     """Extracted identity from Sigstore bundle"""
+
     email: Optional[str] = None
     issuer: Optional[str] = None
     rekor_log_index: Optional[int] = None
     rekor_timestamp: Optional[int] = None
     san_emails: list[str] = None  # type: ignore
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.san_emails is None:
             self.san_emails = []
 
@@ -58,10 +60,7 @@ def extract_identity_from_bundle(bundle_path: Path) -> SignatureIdentity:
         ImportError: If sigstore-python is not installed
     """
     if Bundle is None or x509 is None:
-        raise ImportError(
-            "sigstore-python not installed. "
-            "Install with: pip install sigstore"
-        )
+        raise ImportError("sigstore-python not installed. " "Install with: pip install sigstore")
 
     if not bundle_path.exists():
         raise ValueError(f"Bundle file not found: {bundle_path}")
@@ -83,17 +82,17 @@ def extract_identity_from_bundle(bundle_path: Path) -> SignatureIdentity:
 
         # Extract certificate from bundle
         cert_pem = None
-        if hasattr(bundle, 'verification_material'):
+        if hasattr(bundle, "verification_material"):
             vm = bundle.verification_material
-            if hasattr(vm, 'certificate'):
+            if hasattr(vm, "certificate"):
                 cert_pem = vm.certificate
 
         if cert_pem:
             # Parse X.509 certificate
             from cryptography.hazmat.backends import default_backend
+
             cert = x509.load_pem_x509_certificate(
-                cert_pem.encode() if isinstance(cert_pem, str) else cert_pem,
-                default_backend()
+                cert_pem.encode() if isinstance(cert_pem, str) else cert_pem, default_backend()
             )
 
             # Extract SAN (Subject Alternative Name) emails
@@ -103,7 +102,7 @@ def extract_identity_from_bundle(bundle_path: Path) -> SignatureIdentity:
                 )
                 san_emails = [
                     email.value
-                    for email in san_ext.value
+                    for email in cast(Any, san_ext.value)
                     if isinstance(email, x509.RFC822Name)
                 ]
                 identity.san_emails = san_emails
@@ -114,11 +113,12 @@ def extract_identity_from_bundle(bundle_path: Path) -> SignatureIdentity:
 
             # Extract issuer from X.509 Issuer field
             try:
-                issuer_attrs = cert.issuer.get_attributes_for_oid(
-                    NameOID.COMMON_NAME
-                )
+                issuer_attrs = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
                 if issuer_attrs:
-                    identity.issuer = issuer_attrs[0].value
+                    issuer_value = issuer_attrs[0].value
+                    identity.issuer = (
+                        issuer_value.decode() if isinstance(issuer_value, bytes) else issuer_value
+                    )
             except Exception:
                 pass
 
@@ -128,23 +128,23 @@ def extract_identity_from_bundle(bundle_path: Path) -> SignatureIdentity:
                 for ext in cert.extensions:
                     # Check for Fulcio OIDC Issuer extension
                     if ext.oid.dotted_string == "1.3.6.1.4.1.57264.1.1":
-                        identity.issuer = ext.value.value.decode('utf-8')
+                        identity.issuer = ext.value.value.decode("utf-8")
                         break
             except Exception:
                 pass
 
         # Extract Rekor log entry data
-        if hasattr(bundle, 'verification_material'):
+        if hasattr(bundle, "verification_material"):
             vm = bundle.verification_material
-            if hasattr(vm, 'transparency_entries') and vm.transparency_entries:
+            if hasattr(vm, "transparency_entries") and vm.transparency_entries:
                 entry = vm.transparency_entries[0]
 
                 # Extract log index
-                if hasattr(entry, 'log_index'):
+                if hasattr(entry, "log_index"):
                     identity.rekor_log_index = entry.log_index
 
                 # Extract timestamp from integrated time
-                if hasattr(entry, 'integrated_time'):
+                if hasattr(entry, "integrated_time"):
                     identity.rekor_timestamp = entry.integrated_time
 
         # Fallback: try to extract from raw JSON if sigstore models didn't work
@@ -154,7 +154,7 @@ def extract_identity_from_bundle(bundle_path: Path) -> SignatureIdentity:
         return identity
 
     except Exception as e:
-        raise ValueError(f"Failed to parse Sigstore bundle: {e}")
+        raise ValueError(f"Failed to parse Sigstore bundle: {e}") from e
 
 
 def _extract_from_raw_json(bundle_data: dict, identity: SignatureIdentity) -> SignatureIdentity:
@@ -168,16 +168,17 @@ def _extract_from_raw_json(bundle_data: dict, identity: SignatureIdentity) -> Si
     cert_pem = None
 
     # Check verification material
-    vm = bundle_data.get('verificationMaterial', {})
-    if 'x509CertificateChain' in vm:
-        certs = vm['x509CertificateChain'].get('certificates', [])
+    vm = bundle_data.get("verificationMaterial", {})
+    if "x509CertificateChain" in vm:
+        certs = vm["x509CertificateChain"].get("certificates", [])
         if certs:
-            cert_pem = certs[0].get('rawBytes')
+            cert_pem = certs[0].get("rawBytes")
 
     if cert_pem and not identity.email:
         try:
-            from cryptography.hazmat.backends import default_backend
             import base64
+
+            from cryptography.hazmat.backends import default_backend
 
             # Decode base64 certificate
             cert_der = base64.b64decode(cert_pem)
@@ -190,7 +191,7 @@ def _extract_from_raw_json(bundle_data: dict, identity: SignatureIdentity) -> Si
                 )
                 san_emails = [
                     email.value
-                    for email in san_ext.value
+                    for email in cast(Any, san_ext.value)
                     if isinstance(email, x509.RFC822Name)
                 ]
                 if san_emails:
@@ -203,7 +204,7 @@ def _extract_from_raw_json(bundle_data: dict, identity: SignatureIdentity) -> Si
             try:
                 for ext in cert.extensions:
                     if ext.oid.dotted_string == "1.3.6.1.4.1.57264.1.1":
-                        identity.issuer = ext.value.value.decode('utf-8')
+                        identity.issuer = ext.value.value.decode("utf-8")
                         break
             except Exception:
                 pass
@@ -212,20 +213,18 @@ def _extract_from_raw_json(bundle_data: dict, identity: SignatureIdentity) -> Si
 
     # Extract Rekor data
     if not identity.rekor_timestamp:
-        if 'verificationMaterial' in bundle_data:
-            vm = bundle_data['verificationMaterial']
-            if 'tlogEntries' in vm and vm['tlogEntries']:
-                entry = vm['tlogEntries'][0]
-                identity.rekor_log_index = entry.get('logIndex')
-                identity.rekor_timestamp = entry.get('integratedTime')
+        if "verificationMaterial" in bundle_data:
+            vm = bundle_data["verificationMaterial"]
+            if vm.get("tlogEntries"):
+                entry = vm["tlogEntries"][0]
+                identity.rekor_log_index = entry.get("logIndex")
+                identity.rekor_timestamp = entry.get("integratedTime")
 
     return identity
 
 
 def verify_identity_against_policy(
-    identity: SignatureIdentity,
-    expected_email: str,
-    allowed_issuers: Optional[list[str]] = None
+    identity: SignatureIdentity, expected_email: str, allowed_issuers: Optional[list[str]] = None
 ) -> tuple[bool, str]:
     """
     Verify extracted identity against policy constraints

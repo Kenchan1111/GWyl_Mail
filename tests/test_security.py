@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import gwyl_mail.cli as cli
+from gwyl_mail import cli
 
 
 def test_path_traversal_blocked(tmp_path: Path):
@@ -91,7 +91,9 @@ def test_nonexistent_path_in_safe_dir_allowed(tmp_path: Path):
 
     # But traversal through nonexistent intermediate dirs should still be blocked
     traversal = base / ".." / "outside" / "file.txt"
-    assert not cli._safe_in_dir(traversal, base), "Traversal to nonexistent outside path should be blocked"
+    assert not cli._safe_in_dir(
+        traversal, base
+    ), "Traversal to nonexistent outside path should be blocked"
 
 
 def test_absolute_path_outside_blocked(tmp_path: Path):
@@ -125,10 +127,14 @@ def test_command_injection_blocked(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli, "_has", lambda c: True)
 
     args = SimpleNamespace(
-        eml=str(eml), proof=str(proof_path), strict=True, policy=None, expect_identity=None, allow_issuer=None
+        eml=str(eml),
+        proof=str(proof_path),
+        strict=True,
+        policy=None,
+        expect_identity=None,
+        allow_issuer=None,
     )
 
     rc = cli.cmd_verify(args)
     # Must fail due to invalid bundle path (illegal chars)
     assert rc != 0
-

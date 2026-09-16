@@ -3,10 +3,11 @@ Test Vectors v0 - Validation de la conformité canonicalisation
 
 Référence: docs/specs/TEST_VECTORS_v0.md
 """
+
 from email.message import EmailMessage
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
 
 from gwyl_mail.canonical import GWylCanonical, canonicalize
 
@@ -31,8 +32,8 @@ def test_tv1_plain_text_simple():
 
     # Debug: afficher la forme canonique si échec
     if actual != expected:
-        canonical_form = canonicalize(msg).decode('utf-8')
-        print(f"\nTV1 FAILED:")
+        canonical_form = canonicalize(msg).decode("utf-8")
+        print("\nTV1 FAILED:")
         print(f"Expected: {expected}")
         print(f"Actual:   {actual}")
         print(f"Canonical form:\n{canonical_form}")
@@ -58,8 +59,8 @@ def test_tv2_cafe_creme():
     actual = GWylCanonical.hash(msg)
 
     if actual != expected:
-        canonical_form = canonicalize(msg).decode('utf-8')
-        print(f"\nTV2 FAILED:")
+        canonical_form = canonicalize(msg).decode("utf-8")
+        print("\nTV2 FAILED:")
         print(f"Expected: {expected}")
         print(f"Actual:   {actual}")
         print(f"Canonical form:\n{canonical_form}")
@@ -85,8 +86,8 @@ def test_tv3_rfc2047_encoded_subject():
     actual = GWylCanonical.hash(msg)
 
     if actual != expected:
-        canonical_form = canonicalize(msg).decode('utf-8')
-        print(f"\nTV3 FAILED:")
+        canonical_form = canonicalize(msg).decode("utf-8")
+        print("\nTV3 FAILED:")
         print(f"Expected: {expected}")
         print(f"Actual:   {actual}")
         print(f"Canonical form:\n{canonical_form}")
@@ -113,11 +114,11 @@ def test_tv4_attachments_sorted():
 
     # Attachments (order should not matter after sorting by hash)
     att1 = MIMEApplication(b"PDFDATA", Name="contract.pdf")
-    att1['Content-Disposition'] = 'attachment; filename="contract.pdf"'
+    att1["Content-Disposition"] = 'attachment; filename="contract.pdf"'
     msg.attach(att1)
 
     att2 = MIMEApplication(b"IMAGEDATA", Name="logo.png")
-    att2['Content-Disposition'] = 'attachment; filename="logo.png"'
+    att2["Content-Disposition"] = 'attachment; filename="logo.png"'
     msg.attach(att2)
 
     # Convert to string and re-parse to get EmailMessage
@@ -130,8 +131,9 @@ def test_tv4_attachments_sorted():
 
     # Verify attachment hashes are correct
     import hashlib
-    expected_pdf_hash = hashlib.sha256(b'PDFDATA').hexdigest()
-    expected_img_hash = hashlib.sha256(b'IMAGEDATA').hexdigest()
+
+    expected_pdf_hash = hashlib.sha256(b"PDFDATA").hexdigest()
+    expected_img_hash = hashlib.sha256(b"IMAGEDATA").hexdigest()
 
     print(f"\nTV4 Hash: {actual}")
     print(f"PDF hash:   {expected_pdf_hash}")
@@ -156,7 +158,7 @@ def test_tv5_unicode_filename_nfc():
 
     # Filename with composed é (NFC: \u00e9)
     att = MIMEApplication(b"PDFDATA", Name="contraté.pdf")
-    att['Content-Disposition'] = 'attachment; filename="contraté.pdf"'
+    att["Content-Disposition"] = 'attachment; filename="contraté.pdf"'
     msg.attach(att)
 
     msg_str = msg.as_string()

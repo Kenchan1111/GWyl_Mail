@@ -1,9 +1,8 @@
-from email.message import EmailMessage
-from email.mime.text import MIMEText
-from email.parser import BytesParser
 from email import policy
+from email.message import EmailMessage
+from email.parser import BytesParser
 
-from gwyl_mail.canonical import GWylCanonical, canonicalize
+from gwyl_mail.canonical import GWylCanonical
 
 
 def test_simple_message_hash_stable():
@@ -45,6 +44,7 @@ def test_headers_added_are_ignored():
 # ============================================================================
 # SPRINT 2: Encoding & RFC2047 Tests
 # ============================================================================
+
 
 def test_utf8_encoding_stability():
     """
@@ -182,8 +182,9 @@ def test_unicode_nfc_normalization():
 
     # Message with NFD (decomposed) - manually construct
     import unicodedata
-    subject_nfd = unicodedata.normalize('NFD', "Café")
-    body_nfd = unicodedata.normalize('NFD', "Café")
+
+    subject_nfd = unicodedata.normalize("NFD", "Café")
+    body_nfd = unicodedata.normalize("NFD", "Café")
 
     msg_nfd = EmailMessage()
     msg_nfd["From"] = "alice@example.com"
@@ -269,4 +270,3 @@ def test_body_encoding_qp_vs_utf8():
     h2 = GWylCanonical.hash(msg_utf8)
 
     assert h1 == h2, "QP and UTF-8 encoded bodies should produce same hash"
-

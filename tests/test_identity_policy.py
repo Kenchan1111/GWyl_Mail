@@ -2,10 +2,10 @@
 Test Identity Policy - Sprint 2
 Reference: IDENTITY_POLICY_v0.md and identity_policy.py implementation
 """
+
 import tempfile
 from pathlib import Path
 
-import pytest
 import yaml
 
 from gwyl_mail.identity_policy import IdentityPolicy
@@ -20,7 +20,7 @@ def test_exact_match_default():
     result = policy.verify(
         from_email="alice@company.com",
         cert_subject="alice@company.com",
-        cert_issuer="https://accounts.google.com"
+        cert_issuer="https://accounts.google.com",
     )
 
     assert result["valid"] is True
@@ -36,7 +36,7 @@ def test_exact_mismatch_default():
     result = policy.verify(
         from_email="alice@company.com",
         cert_subject="mallory@evil.com",
-        cert_issuer="https://accounts.google.com"
+        cert_issuer="https://accounts.google.com",
     )
 
     assert result["valid"] is False
@@ -50,12 +50,10 @@ def test_domain_tolerance():
     """
     policy_data = {
         "enforcement_mode": "strict",
-        "validation_rules": [
-            {"name": "from_matches_cert", "tolerance": "domain"}
-        ]
+        "validation_rules": [{"name": "from_matches_cert", "tolerance": "domain"}],
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -66,7 +64,7 @@ def test_domain_tolerance():
         result = policy.verify(
             from_email="noreply@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://accounts.google.com"
+            cert_issuer="https://accounts.google.com",
         )
 
         assert result["valid"] is True
@@ -82,12 +80,10 @@ def test_domain_tolerance_fail_different_domain():
     """
     policy_data = {
         "enforcement_mode": "strict",
-        "validation_rules": [
-            {"name": "from_matches_cert", "tolerance": "domain"}
-        ]
+        "validation_rules": [{"name": "from_matches_cert", "tolerance": "domain"}],
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -98,7 +94,7 @@ def test_domain_tolerance_fail_different_domain():
         result = policy.verify(
             from_email="noreply@company.com",
             cert_subject="alice@otherdomain.com",
-            cert_issuer="https://accounts.google.com"
+            cert_issuer="https://accounts.google.com",
         )
 
         assert result["valid"] is False
@@ -114,17 +110,13 @@ def test_alias_tolerance():
     """
     policy_data = {
         "enforcement_mode": "strict",
-        "validation_rules": [
-            {"name": "from_matches_cert", "tolerance": "alias"}
-        ],
+        "validation_rules": [{"name": "from_matches_cert", "tolerance": "alias"}],
         "aliases": {
-            "robert@company.com": {
-                "allowed_aliases": ["bob@company.com", "robert@company.com"]
-            }
-        }
+            "robert@company.com": {"allowed_aliases": ["bob@company.com", "robert@company.com"]}
+        },
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -135,7 +127,7 @@ def test_alias_tolerance():
         result = policy.verify(
             from_email="bob@company.com",
             cert_subject="robert@company.com",
-            cert_issuer="https://any-issuer.com"
+            cert_issuer="https://any-issuer.com",
         )
 
         assert result["valid"] is True
@@ -151,17 +143,11 @@ def test_alias_tolerance_fail_not_in_list():
     """
     policy_data = {
         "enforcement_mode": "strict",
-        "validation_rules": [
-            {"name": "from_matches_cert", "tolerance": "alias"}
-        ],
-        "aliases": {
-            "robert@company.com": {
-                "allowed_aliases": ["bob@company.com"]
-            }
-        }
+        "validation_rules": [{"name": "from_matches_cert", "tolerance": "alias"}],
+        "aliases": {"robert@company.com": {"allowed_aliases": ["bob@company.com"]}},
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -172,7 +158,7 @@ def test_alias_tolerance_fail_not_in_list():
         result = policy.verify(
             from_email="charlie@company.com",
             cert_subject="robert@company.com",
-            cert_issuer="https://any-issuer.com"
+            cert_issuer="https://any-issuer.com",
         )
 
         assert result["valid"] is False
@@ -188,13 +174,10 @@ def test_issuer_whitelist():
     """
     policy_data = {
         "enforcement_mode": "strict",
-        "allowed_issuers": [
-            "https://accounts.google.com",
-            "https://github.com/login/oauth"
-        ]
+        "allowed_issuers": ["https://accounts.google.com", "https://github.com/login/oauth"],
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -205,7 +188,7 @@ def test_issuer_whitelist():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://accounts.google.com"
+            cert_issuer="https://accounts.google.com",
         )
         assert result["valid"] is True
         assert result["issuer"] is True
@@ -214,7 +197,7 @@ def test_issuer_whitelist():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://evil-issuer.com"
+            cert_issuer="https://evil-issuer.com",
         )
         assert result["valid"] is False
         assert result["issuer"] is False
@@ -227,12 +210,9 @@ def test_domain_whitelist():
     """
     Test domain whitelist enforcement
     """
-    policy_data = {
-        "enforcement_mode": "strict",
-        "allowed_domains": ["company.com", "partner.com"]
-    }
+    policy_data = {"enforcement_mode": "strict", "allowed_domains": ["company.com", "partner.com"]}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -243,7 +223,7 @@ def test_domain_whitelist():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://any-issuer.com"
+            cert_issuer="https://any-issuer.com",
         )
         assert result["valid"] is True
         assert result["domain"] is True
@@ -252,7 +232,7 @@ def test_domain_whitelist():
         result = policy.verify(
             from_email="mallory@evil.com",
             cert_subject="mallory@evil.com",
-            cert_issuer="https://any-issuer.com"
+            cert_issuer="https://any-issuer.com",
         )
         assert result["valid"] is False
         assert result["domain"] is False
@@ -265,11 +245,9 @@ def test_warn_enforcement_mode():
     """
     Test that warn enforcement mode returns "warn" even on mismatch
     """
-    policy_data = {
-        "enforcement_mode": "warn"
-    }
+    policy_data = {"enforcement_mode": "warn"}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -280,7 +258,7 @@ def test_warn_enforcement_mode():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="bob@company.com",
-            cert_issuer="https://any-issuer.com"
+            cert_issuer="https://any-issuer.com",
         )
 
         # Should return enforcement=warn
@@ -294,11 +272,9 @@ def test_strict_enforcement_mode():
     """
     Test that strict enforcement mode returns "strict" on mismatch
     """
-    policy_data = {
-        "enforcement_mode": "strict"
-    }
+    policy_data = {"enforcement_mode": "strict"}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -309,7 +285,7 @@ def test_strict_enforcement_mode():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="bob@company.com",
-            cert_issuer="https://any-issuer.com"
+            cert_issuer="https://any-issuer.com",
         )
 
         assert result["valid"] is False
@@ -329,7 +305,7 @@ def test_case_insensitive_email_matching():
     result = policy.verify(
         from_email="Alice@Company.COM",
         cert_subject="alice@company.com",
-        cert_issuer="https://any-issuer.com"
+        cert_issuer="https://any-issuer.com",
     )
 
     assert result["valid"] is True
@@ -353,13 +329,11 @@ def test_check_alias_helper():
     """
     policy_data = {
         "aliases": {
-            "alice@company.com": {
-                "allowed_aliases": ["noreply@company.com", "support@company.com"]
-            }
+            "alice@company.com": {"allowed_aliases": ["noreply@company.com", "support@company.com"]}
         }
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -387,7 +361,7 @@ def test_issuer_ok_helper():
         "allowed_issuers": ["https://accounts.google.com", "https://github.com/login/oauth"]
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -412,11 +386,9 @@ def test_domain_ok_helper():
     """
     Test the _domain_ok helper method
     """
-    policy_data = {
-        "allowed_domains": ["company.com", "partner.org"]
-    }
+    policy_data = {"allowed_domains": ["company.com", "partner.org"]}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -441,12 +413,9 @@ def test_issuer_exact_match_security():
     Security: Ensures "google.com" does not match "evilgoogle.com" or "google.com.evil.com".
     Valid subdomains like "accounts.google.com" should still match.
     """
-    policy_data = {
-        "enforcement_mode": "strict",
-        "allowed_issuers": ["google.com"]
-    }
+    policy_data = {"enforcement_mode": "strict", "allowed_issuers": ["google.com"]}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -457,7 +426,7 @@ def test_issuer_exact_match_security():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://evilgoogle.com"
+            cert_issuer="https://evilgoogle.com",
         )
         assert result["issuer"] is False, "Substring attack should be blocked"
 
@@ -465,7 +434,7 @@ def test_issuer_exact_match_security():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://google.com.evil.com"
+            cert_issuer="https://google.com.evil.com",
         )
         assert result["issuer"] is False, "Suffix hijack should be blocked"
 
@@ -473,7 +442,7 @@ def test_issuer_exact_match_security():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://googlemail.com"
+            cert_issuer="https://googlemail.com",
         )
         assert result["issuer"] is False, "Similar domain should not match"
 
@@ -481,7 +450,7 @@ def test_issuer_exact_match_security():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://google.com"
+            cert_issuer="https://google.com",
         )
         assert result["issuer"] is True, "Exact match should succeed"
 
@@ -489,7 +458,7 @@ def test_issuer_exact_match_security():
         result = policy.verify(
             from_email="alice@company.com",
             cert_subject="alice@company.com",
-            cert_issuer="https://accounts.google.com"
+            cert_issuer="https://accounts.google.com",
         )
         assert result["issuer"] is True, "Valid subdomain should match"
 
@@ -501,12 +470,9 @@ def test_issuer_suffix_match_with_dot_boundary():
     """
     Test that issuer suffix matching requires dot boundary (SPRINT 5.2.1).
     """
-    policy_data = {
-        "enforcement_mode": "strict",
-        "allowed_issuers": ["example.com"]
-    }
+    policy_data = {"enforcement_mode": "strict", "allowed_issuers": ["example.com"]}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         yaml.dump(policy_data, f)
         temp_path = Path(f.name)
 
@@ -526,3 +492,51 @@ def test_issuer_suffix_match_with_dot_boundary():
 
     finally:
         temp_path.unlink()
+
+
+def test_identity_allowlist_enforced():
+    """SPRINT 8: allowed_identities was loaded but never enforced.
+
+    A non-empty allowlist must restrict which certificate subjects may sign;
+    an empty one accepts any identity (backward compatibility).
+    """
+    policy_data = {
+        "enforcement_mode": "strict",
+        "allowed_identities": ["alice@company.com"],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+        yaml.dump(policy_data, f)
+        temp_path = Path(f.name)
+    try:
+        policy = IdentityPolicy(temp_path)
+
+        # Allowed identity passes
+        ok = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="alice@company.com",
+            cert_issuer="https://accounts.google.com",
+        )
+        assert ok["valid"] is True
+        assert ok["identity"] is True
+
+        # Same From, but a non-allowed certificate subject is rejected
+        # (from_cert passes, identity allowlist fails)
+        rejected = policy.verify(
+            from_email="alice@company.com",
+            cert_subject="mallory@evil.com",
+            cert_issuer="https://accounts.google.com",
+        )
+        assert rejected["valid"] is False
+        assert rejected["identity"] is False
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def test_identity_allowlist_empty_accepts_any():
+    policy = IdentityPolicy()
+    result = policy.verify(
+        from_email="anyone@anywhere.com",
+        cert_subject="anyone@anywhere.com",
+        cert_issuer="",
+    )
+    assert result["identity"] is True

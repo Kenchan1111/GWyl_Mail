@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
 try:
     import yaml  # type: ignore
@@ -41,14 +41,9 @@ def compute_policy_hash(policy_path: Path) -> str:
         policy = yaml.safe_load(f)
 
     # Canonicalize: sort keys recursively
-    canonical_yaml = yaml.dump(
-        policy,
-        sort_keys=True,
-        default_flow_style=False,
-        allow_unicode=True
-    )
+    canonical_yaml = yaml.dump(policy, sort_keys=True, default_flow_style=False, allow_unicode=True)
 
-    return hashlib.sha256(canonical_yaml.encode('utf-8')).hexdigest()
+    return hashlib.sha256(canonical_yaml.encode("utf-8")).hexdigest()
 
 
 def extract_policy_metadata(policy_path: Path) -> Dict[str, Any]:
@@ -70,8 +65,8 @@ def extract_policy_metadata(policy_path: Path) -> Dict[str, Any]:
             policy = yaml.safe_load(f) or {}
 
         return {
-            'policy_id': policy.get('policy_id', 'default'),
-            'policy_url': policy.get('policy_url')
+            "policy_id": policy.get("policy_id", "default"),
+            "policy_url": policy.get("policy_url"),
         }
     except Exception:
         return {}

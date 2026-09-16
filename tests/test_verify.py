@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import gwyl_mail.cli as cli
+from gwyl_mail import cli
 
 
 def test_safe_in_dir(tmp_path: Path):
@@ -57,10 +57,14 @@ def test_ots_pending_detection(monkeypatch, tmp_path: Path):
 
     # Invoke verify
     args = SimpleNamespace(
-        eml=str(eml), proof=str(proof_path), strict=False, policy=None, expect_identity=None, allow_issuer=None
+        eml=str(eml),
+        proof=str(proof_path),
+        strict=False,
+        policy=None,
+        expect_identity=None,
+        allow_issuer=None,
     )
     # We call the internal function directly to avoid argparse
     rc = cli.cmd_verify(args)
     # Should fail (canonical empty, and ots pending) → rc non-zero
     assert rc != 0
-

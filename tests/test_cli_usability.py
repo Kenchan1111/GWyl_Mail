@@ -3,16 +3,16 @@
 These tests are deterministic on any machine: no cosign/ots binary is
 required, external calls are monkeypatched away.
 """
+
 import base64
 import json
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 from types import SimpleNamespace
 
-import gwyl_mail.cli as cli
-import gwyl_mail.doctor as doctor
+from gwyl_mail import cli, doctor
 from gwyl_mail.canonical import GWylCanonical
-from email import policy
-from email.parser import BytesParser
 
 EML = (
     "From: a@b\nTo: c@d\nSubject: t\nDate: Fri, 10 Jan 2025 10:20:30 +0000\n"
@@ -48,6 +48,7 @@ def _proof_args(tmp_path: Path, out: Path, **kw) -> SimpleNamespace:
 
 # --- create-proof gating ---------------------------------------------------
 
+
 def test_create_proof_refuses_without_tools(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "_has", lambda c: False)
     out = tmp_path / "proof.json"
@@ -63,7 +64,8 @@ def test_create_proof_refuses_without_tools(monkeypatch, tmp_path, capsys):
 def test_create_proof_allow_degraded_warns_and_creates(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "_has", lambda c: False)
     monkeypatch.setattr(
-        cli, "create_proof",
+        cli,
+        "create_proof",
         lambda *a, **k: _envelope({"opentimestamps": {"status": "FAILED"}}, signatures=[]),
     )
     out = tmp_path / "proof.json"
@@ -81,7 +83,8 @@ def test_create_proof_reports_honestly_when_signing_fails(monkeypatch, tmp_path,
     # back unsigned and the output message must say so.
     monkeypatch.setattr(cli, "_has", lambda c: True)
     monkeypatch.setattr(
-        cli, "create_proof",
+        cli,
+        "create_proof",
         lambda *a, **k: _envelope({"opentimestamps": {"status": "PENDING"}}, signatures=[]),
     )
     out = tmp_path / "proof.json"
@@ -94,7 +97,8 @@ def test_create_proof_reports_honestly_when_signing_fails(monkeypatch, tmp_path,
 def test_create_proof_signed_message_only_when_signature_present(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "_has", lambda c: True)
     monkeypatch.setattr(
-        cli, "create_proof",
+        cli,
+        "create_proof",
         lambda *a, **k: _envelope(
             {"opentimestamps": {"status": "PENDING"}},
             signatures=[{"keyid": "", "sig": "QUJD", "bundle": "/tmp/b.json"}],
@@ -111,10 +115,16 @@ def test_create_proof_signed_message_only_when_signature_present(monkeypatch, tm
 
 # --- verify: dsse_signed honesty -------------------------------------------
 
+
 def _verify_args(tmp_path: Path, proof_path: Path) -> SimpleNamespace:
     return SimpleNamespace(
-        eml=str(_eml(tmp_path)), proof=str(proof_path), strict=False, policy=None,
-        expect_identity=None, allow_issuer=None, profile_override=None,
+        eml=str(_eml(tmp_path)),
+        proof=str(proof_path),
+        strict=False,
+        policy=None,
+        expect_identity=None,
+        allow_issuer=None,
+        profile_override=None,
     )
 
 
@@ -166,6 +176,7 @@ def test_verify_strict_fails_on_signature_verification_error(monkeypatch, tmp_pa
 
 # --- doctor ----------------------------------------------------------------
 
+
 def test_doctor_json_reports_missing_tools(monkeypatch, capsys):
     monkeypatch.setattr(doctor.shutil, "which", lambda name: None)
     rc = doctor.cmd_doctor(SimpleNamespace(json=True, skip_network=True))
@@ -213,3 +224,36 @@ def test_doctor_network_checks_are_informational(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "unreachable" in out
     assert "All required checks passed" in out
+
+
+def test_degraded_proof_still_validates_against_hardened_schema(monkeypatch, tmp_path):
+    """SPRINT 8: schema hardening must not reject legitimate degraded proofs."""
+    from email.message import EmailMessage
+
+    from gwyl_mail.dual_proof import create_proof
+    from gwyl_mail.validation import ProofValidator
+
+    monkeypatch.chdir(tmp_path)
+    msg = EmailMessage()
+    msg["From"] = "a@b.c"
+    msg["To"] = "d@e.f"
+    msg["Subject"] = "t"
+    msg["Date"] = "Fri, 10 Jan 2025 10:20:30 +0000"
+    msg["Message-ID"] = "<x@x>"
+    msg.set_content("Body")
+
+    envelope = create_proof(msg, identity="a@b.c", dsse=True, profile="strict")
+    inner = cli.extract_proof_from_dsse(envelope)
+    assert inner is not None
+    result = ProofValidator().validate(inner)
+    assert result.valid, result.error
+
+
+def test_explain_reasons_outputs_human_messages(capsys):
+    cli._explain_reasons(
+        ["canonical_mismatch(profile=strict)", "dsse_unsigned_envelope", "unknown_future_code"]
+    )
+    err = capsys.readouterr().err
+    assert "DIFFÈRE" in err
+    assert "PAS signée" in err
+    # Unknown codes are skipped silently, no crash

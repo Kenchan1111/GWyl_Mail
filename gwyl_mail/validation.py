@@ -30,7 +30,8 @@ class ProofValidator:
         schema_path = Path(__file__).parent / "schemas" / "proof-v0.2.0.json"
         if not schema_path.exists():
             return {}
-        return json.loads(schema_path.read_text())
+        schema: Dict[str, Any] = json.loads(schema_path.read_text())
+        return schema
 
     def validate(self, proof: Dict[str, Any]) -> ValidationResult:
         if not self.schema or jsonschema is None:

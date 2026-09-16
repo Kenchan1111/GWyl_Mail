@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -71,26 +70,26 @@ class IdentityPolicy:
 
             # Extract domain from URL if present (remove https://, http://, etc.)
             issuer_domain = issuer_lower
-            for prefix in ['https://', 'http://']:
+            for prefix in ["https://", "http://"]:
                 if issuer_domain.startswith(prefix):
-                    issuer_domain = issuer_domain[len(prefix):]
+                    issuer_domain = issuer_domain[len(prefix) :]
                     break
 
             allowed_domain = allowed_lower
-            for prefix in ['https://', 'http://']:
+            for prefix in ["https://", "http://"]:
                 if allowed_domain.startswith(prefix):
-                    allowed_domain = allowed_domain[len(prefix):]
+                    allowed_domain = allowed_domain[len(prefix) :]
                     break
 
             # Remove trailing slash if present
-            issuer_domain = issuer_domain.rstrip('/')
-            allowed_domain = allowed_domain.rstrip('/')
+            issuer_domain = issuer_domain.rstrip("/")
+            allowed_domain = allowed_domain.rstrip("/")
 
             # Exact match
             if issuer_domain == allowed_domain:
                 return True
             # Suffix match with dot boundary (e.g., "accounts.google.com" matches "google.com")
-            if issuer_domain.endswith('.' + allowed_domain):
+            if issuer_domain.endswith("." + allowed_domain):
                 return True
 
         return False
@@ -104,6 +103,18 @@ class IdentityPolicy:
         except Exception:
             return False
 
+    def _identity_ok(self, cert_subject: str) -> bool:
+        """Check if the certificate subject is in the identity allowlist.
+
+        SPRINT 8: loaded from YAML since Sprint 2 but never enforced. An empty
+        allowlist accepts any identity (backward compatible); a non-empty one
+        restricts which certificate subjects may sign.
+        """
+        allowed = self.config.allowed_identities or []
+        if not allowed:
+            return True
+        return cert_subject.lower() in [a.lower() for a in allowed]
+
     def verify(self, from_email: str, cert_subject: str, cert_issuer: str) -> Dict[str, Any]:
         rules = {r["name"]: r for r in (self.config.validation_rules or [])}
         tol = (rules.get("from_matches_cert", {}).get("tolerance") or "exact").lower()
@@ -115,8 +126,15 @@ class IdentityPolicy:
             from_ok = self._check_alias(from_email, cert_subject)
         issuer_ok = self._issuer_ok(cert_issuer)
         domain_ok = self._domain_ok(from_email)
-        all_ok = from_ok and issuer_ok and domain_ok
-        result = {"from_cert": from_ok, "issuer": issuer_ok, "domain": domain_ok, "valid": all_ok}
+        identity_ok = self._identity_ok(cert_subject)
+        all_ok = from_ok and issuer_ok and domain_ok and identity_ok
+        result: Dict[str, Any] = {
+            "from_cert": from_ok,
+            "issuer": issuer_ok,
+            "domain": domain_ok,
+            "identity": identity_ok,
+            "valid": all_ok,
+        }
         if not all_ok and self.config.enforcement_mode == "strict":
             result["enforcement"] = "strict"
         else:

@@ -10,7 +10,7 @@ from email.message import EmailMessage
 from email.parser import BytesParser, Parser
 from email.utils import getaddresses
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional, cast
 
 try:
     import yaml  # type: ignore
@@ -24,30 +24,61 @@ CANONICAL_HEADERS = ["from", "to", "subject", "date", "message-id"]
 # MTA headers to exclude in relaxed profile (Sprint 6.2.1, extended per ChatGPT)
 RELAXED_EXCLUDED_HEADERS = [
     # Routing headers
-    "received", "return-path", "delivered-to", "x-original-to",
+    "received",
+    "return-path",
+    "delivered-to",
+    "x-original-to",
     # Authentication headers
-    "dkim-signature", "arc-seal", "arc-message-signature", "arc-authentication-results",
-    "authentication-results", "received-spf", "domainkey-signature",
+    "dkim-signature",
+    "arc-seal",
+    "arc-message-signature",
+    "arc-authentication-results",
+    "authentication-results",
+    "received-spf",
+    "domainkey-signature",
     # Spam/virus filtering
-    "x-spam-status", "x-spam-score", "x-spam-flag", "x-spam-level", "x-spam-report",
-    "x-virus-scanned", "x-spam-checker-version",
+    "x-spam-status",
+    "x-spam-score",
+    "x-spam-flag",
+    "x-spam-level",
+    "x-spam-report",
+    "x-virus-scanned",
+    "x-spam-checker-version",
     # MTA-specific headers
-    "x-mailer", "x-originating-ip", "x-received", "x-priority", "x-msmail-priority",
-    "importance", "x-google-smtp-source", "x-gm-message-state",
+    "x-mailer",
+    "x-originating-ip",
+    "x-received",
+    "x-priority",
+    "x-msmail-priority",
+    "importance",
+    "x-google-smtp-source",
+    "x-gm-message-state",
     # Microsoft Exchange headers
-    "x-ms-exchange-organization-authas", "x-ms-exchange-organization-authsource",
-    "x-ms-exchange-organization-authmechanism", "x-ms-has-attach", "x-ms-tnef-correlator",
+    "x-ms-exchange-organization-authas",
+    "x-ms-exchange-organization-authsource",
+    "x-ms-exchange-organization-authmechanism",
+    "x-ms-has-attach",
+    "x-ms-tnef-correlator",
     # AWS SES headers
-    "x-ses-outgoing", "x-ses-receipt-id", "x-ses-configuration-set",
+    "x-ses-outgoing",
+    "x-ses-receipt-id",
+    "x-ses-configuration-set",
     # Feedback/security vendor headers
-    "x-feedback-id", "x-proofpoint-virus-version", "x-proofpoint-spam-details",
-    "x-barracuda-envelope-from", "x-barracuda-apparent-source-ip",
+    "x-feedback-id",
+    "x-proofpoint-virus-version",
+    "x-proofpoint-spam-details",
+    "x-barracuda-envelope-from",
+    "x-barracuda-apparent-source-ip",
     # List management
-    "list-id", "list-unsubscribe", "list-subscribe", "list-post",
+    "list-id",
+    "list-unsubscribe",
+    "list-subscribe",
+    "list-post",
     # Auto-reply
-    "auto-submitted", "x-auto-response-suppress",
+    "auto-submitted",
+    "x-auto-response-suppress",
     # MIME version (can be added by MTA)
-    "mime-version"
+    "mime-version",
 ]
 
 
@@ -64,8 +95,9 @@ def _load_profile_config(profile: str = "strict") -> Dict[str, Any]:
     config_path = Path(__file__).parent / "canonical_profiles.yml"
     if yaml and config_path.exists():
         try:
-            config = yaml.safe_load(config_path.read_text())
-            return config["profiles"].get(profile, config["profiles"]["strict"])
+            config = cast(Dict[str, Any], yaml.safe_load(config_path.read_text()) or {})
+            profiles = cast(Dict[str, Any], config.get("profiles", {}))
+            return cast(Dict[str, Any], profiles.get(profile) or profiles.get("strict") or {})
         except Exception:
             pass
 
@@ -76,7 +108,7 @@ def _load_profile_config(profile: str = "strict") -> Dict[str, Any]:
             "excluded_headers": RELAXED_EXCLUDED_HEADERS,
             "whitespace": {"normalize": True, "trim": True, "normalize_tabs": True},
             "line_endings": {"normalize": True, "tolerate_wrapping": True},
-            "addresses": {"lowercase_domain": True, "preserve_local": True}
+            "addresses": {"lowercase_domain": True, "preserve_local": True},
         }
     else:  # strict
         return {
@@ -84,7 +116,7 @@ def _load_profile_config(profile: str = "strict") -> Dict[str, Any]:
             "excluded_headers": [],
             "whitespace": {"normalize": True, "trim": True},
             "line_endings": {"normalize": True},
-            "addresses": {"lowercase_domain": True, "preserve_local": True}
+            "addresses": {"lowercase_domain": True, "preserve_local": True},
         }
 
 
@@ -156,7 +188,7 @@ def canonicalize_headers(msg: EmailMessage, profile: str = "strict") -> bytes:
         if key in ("from", "to"):
             v = _normalize_addresses(v)
         # Unicode NFC normalization
-        v = unicodedata.normalize('NFC', v)
+        v = unicodedata.normalize("NFC", v)
         lines.append(f"{key}:{v}")
     return "\n".join(lines).encode("utf-8")
 
@@ -177,7 +209,7 @@ def canonicalize_body(msg: EmailMessage) -> bytes:
     if normalized and not normalized.endswith("\n"):
         normalized += "\n"
     # Unicode NFC normalization
-    normalized = unicodedata.normalize('NFC', normalized)
+    normalized = unicodedata.normalize("NFC", normalized)
     return normalized.encode("utf-8")
 
 
@@ -185,11 +217,11 @@ def canonicalize_attachments(msg: EmailMessage) -> List[bytes]:
     hashes: List[str] = []
     for part in msg.iter_attachments():
         payload = part.get_payload(decode=True)
-        if payload:
+        if isinstance(payload, bytes):
             h = hashlib.sha256(payload).hexdigest()
             hashes.append(h)
     hashes.sort()
-    return [f"attachment:sha256:{h}".encode("utf-8") for h in hashes]
+    return [f"attachment:sha256:{h}".encode() for h in hashes]
 
 
 def canonicalize(msg: EmailMessage, profile: str = "strict") -> bytes:

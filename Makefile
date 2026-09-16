@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint format clean run-tests \
+.PHONY: help install dev test test-poc lint format clean run-tests doctor \
         integrity-install integrity-install-pre-commit integrity-install-pre-push \
         integrity-baseline integrity-commit
 
@@ -9,7 +9,9 @@ help:
 	@echo "  install     Install production dependencies"
 	@echo "  dev         Install development dependencies"
 	@echo "  test        Run tests with coverage"
-	@echo "  lint        Run linters (ruff, mypy)"
+	@echo "  test-poc    Run the PoC validation suite (tests + benchmarks when present)"
+	@echo "  doctor      Check environment (cosign, ots, python packages, network)"
+	@echo "  lint        Run linters (ruff, black, mypy)"
 	@echo "  format      Format code (black)"
 	@echo "  clean       Clean build artifacts"
 	@echo "  run-tests   Run specific test file (e.g., make run-tests TEST=test_canonical)"
@@ -28,8 +30,21 @@ dev:
 test:
 	pytest
 
+test-poc:
+	pytest
+	@if [ -f scripts/benchmark.py ]; then \
+	  echo "[test-poc] Running KPI benchmarks (KPI_POC.md thresholds)..."; \
+	  python scripts/benchmark.py; \
+	else \
+	  echo "[test-poc] benchmarks not implemented yet (planned Sprint 10, scripts/benchmark.py)"; \
+	fi
+
+doctor:
+	python -m gwyl_mail.cli doctor
+
 lint:
 	ruff check gwyl_mail tests
+	black --check gwyl_mail tests
 	mypy gwyl_mail
 
 format:

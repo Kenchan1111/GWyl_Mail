@@ -2,12 +2,8 @@
 
 import base64
 import json
-from pathlib import Path
-
-import pytest
 
 from gwyl_mail.dsse_signer import (
-    DSSEError,
     extract_proof_from_dsse,
     sign_proof_dsse,
     verify_proof_dsse,
@@ -70,7 +66,7 @@ def test_verify_unsigned_envelope():
     envelope = {
         "payload": base64.b64encode(proof_json.encode()).decode(),
         "payloadType": "application/json",
-        "signatures": []  # Empty = unsigned
+        "signatures": [],  # Empty = unsigned
     }
 
     verified, extracted_proof, error = verify_proof_dsse(envelope)
@@ -89,7 +85,7 @@ def test_verify_envelope_without_cosign():
     envelope = {
         "payload": base64.b64encode(proof_json.encode()).decode(),
         "payloadType": "application/json",
-        "signatures": []
+        "signatures": [],
     }
 
     verified, extracted_proof, error = verify_proof_dsse(envelope)
@@ -105,7 +101,7 @@ def test_verify_invalid_payload_type():
     envelope = {
         "payload": base64.b64encode(proof_json.encode()).decode(),
         "payloadType": "text/plain",  # Invalid
-        "signatures": []
+        "signatures": [],
     }
 
     verified, extracted_proof, error = verify_proof_dsse(envelope)
@@ -116,10 +112,7 @@ def test_verify_invalid_payload_type():
 
 def test_verify_missing_payload():
     """Test verification fails when payload is missing."""
-    envelope = {
-        "payloadType": "application/json",
-        "signatures": []
-    }
+    envelope = {"payloadType": "application/json", "signatures": []}
 
     verified, extracted_proof, error = verify_proof_dsse(envelope)
 
@@ -132,7 +125,7 @@ def test_verify_corrupted_base64():
     envelope = {
         "payload": "not!valid!base64!!!",
         "payloadType": "application/json",
-        "signatures": []
+        "signatures": [],
     }
 
     verified, extracted_proof, error = verify_proof_dsse(envelope)

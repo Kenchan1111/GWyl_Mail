@@ -4,6 +4,7 @@ Test Robust Sigstore Identity Extraction - Sprint 3
 Tests the new sigstore_identity module that properly extracts
 certificate identity using cryptography X.509 parsing.
 """
+
 import json
 import tempfile
 from pathlib import Path
@@ -11,9 +12,9 @@ from pathlib import Path
 import pytest
 
 from gwyl_mail.sigstore_identity import (
+    SignatureIdentity,
     extract_identity_from_bundle,
     verify_identity_against_policy,
-    SignatureIdentity,
 )
 
 
@@ -31,7 +32,7 @@ def test_signature_identity_dataclass():
         issuer="https://accounts.google.com",
         rekor_log_index=12345,
         rekor_timestamp=1704931200,
-        san_emails=["alice@example.com"]
+        san_emails=["alice@example.com"],
     )
     assert identity2.email == "alice@example.com"
     assert identity2.issuer == "https://accounts.google.com"
@@ -45,7 +46,7 @@ def test_extract_identity_missing_file():
 
 def test_extract_identity_invalid_json():
     """Test that invalid JSON raises ValueError"""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write("invalid json{{{")
         temp_path = Path(f.name)
 
@@ -61,10 +62,10 @@ def test_extract_identity_empty_bundle():
     bundle_data = {
         "mediaType": "application/vnd.dev.sigstore.bundle+json;version=0.1",
         "verificationMaterial": {},
-        "messageSignature": {"signature": ""}
+        "messageSignature": {"signature": ""},
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(bundle_data, f)
         temp_path = Path(f.name)
 
@@ -114,14 +115,11 @@ def test_verify_identity_case_insensitive():
 
 def test_verify_identity_issuer_whitelist_allowed():
     """Test issuer whitelist allows matching issuer"""
-    identity = SignatureIdentity(
-        email="alice@example.com",
-        issuer="https://accounts.google.com"
-    )
+    identity = SignatureIdentity(email="alice@example.com", issuer="https://accounts.google.com")
     valid, reason = verify_identity_against_policy(
         identity,
         "alice@example.com",
-        allowed_issuers=["https://accounts.google.com", "https://github.com"]
+        allowed_issuers=["https://accounts.google.com", "https://github.com"],
     )
 
     assert valid is True
@@ -129,14 +127,11 @@ def test_verify_identity_issuer_whitelist_allowed():
 
 def test_verify_identity_issuer_whitelist_blocked():
     """Test issuer whitelist blocks non-matching issuer"""
-    identity = SignatureIdentity(
-        email="alice@example.com",
-        issuer="https://evil-issuer.com"
-    )
+    identity = SignatureIdentity(email="alice@example.com", issuer="https://evil-issuer.com")
     valid, reason = verify_identity_against_policy(
         identity,
         "alice@example.com",
-        allowed_issuers=["https://accounts.google.com", "https://github.com"]
+        allowed_issuers=["https://accounts.google.com", "https://github.com"],
     )
 
     assert valid is False
@@ -146,13 +141,10 @@ def test_verify_identity_issuer_whitelist_blocked():
 def test_verify_identity_issuer_substring_match():
     """Test issuer whitelist uses substring matching"""
     identity = SignatureIdentity(
-        email="alice@example.com",
-        issuer="https://accounts.google.com/oauth"
+        email="alice@example.com", issuer="https://accounts.google.com/oauth"
     )
     valid, reason = verify_identity_against_policy(
-        identity,
-        "alice@example.com",
-        allowed_issuers=["https://accounts.google.com"]
+        identity, "alice@example.com", allowed_issuers=["https://accounts.google.com"]
     )
 
     # Should match because "https://accounts.google.com" is in the issuer
@@ -170,15 +162,12 @@ def test_extract_identity_fallback_json_parsing():
     bundle_data = {
         "mediaType": "application/vnd.dev.sigstore.bundle+json;version=0.1",
         "verificationMaterial": {
-            "tlogEntries": [{
-                "logIndex": 12345,
-                "integratedTime": 1704931200
-            }]
+            "tlogEntries": [{"logIndex": 12345, "integratedTime": 1704931200}]
         },
-        "messageSignature": {"signature": "dummysig"}
+        "messageSignature": {"signature": "dummysig"},
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(bundle_data, f)
         temp_path = Path(f.name)
 
@@ -194,8 +183,7 @@ def test_extract_identity_fallback_json_parsing():
 def test_signature_identity_with_multiple_san_emails():
     """Test SignatureIdentity can store multiple SAN emails"""
     identity = SignatureIdentity(
-        email="alice@example.com",
-        san_emails=["alice@example.com", "alice@company.com"]
+        email="alice@example.com", san_emails=["alice@example.com", "alice@company.com"]
     )
 
     assert len(identity.san_emails) == 2
@@ -206,15 +194,10 @@ def test_signature_identity_with_multiple_san_emails():
 
 def test_verify_identity_no_issuer_with_whitelist():
     """Test verification when issuer is None but whitelist is provided"""
-    identity = SignatureIdentity(
-        email="alice@example.com",
-        issuer=None
-    )
+    identity = SignatureIdentity(email="alice@example.com", issuer=None)
     # Should succeed because issuer check is skipped when identity.issuer is None
     valid, reason = verify_identity_against_policy(
-        identity,
-        "alice@example.com",
-        allowed_issuers=["https://accounts.google.com"]
+        identity, "alice@example.com", allowed_issuers=["https://accounts.google.com"]
     )
 
     # Current implementation only checks issuer if identity.issuer is truthy

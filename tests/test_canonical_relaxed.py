@@ -2,10 +2,6 @@
 Test Relaxed Canonicalization Profile - Sprint 6.2.1
 Tests that relaxed profile tolerates common MTA transformations
 """
-from email import policy
-from email.parser import BytesParser
-
-import pytest
 
 from gwyl_mail.canonical import GWylCanonical
 
@@ -14,6 +10,7 @@ def test_relaxed_profile_exists():
     """Test that relaxed profile can be loaded."""
     # Should not raise an exception
     from gwyl_mail.canonical import _load_profile_config
+
     config = _load_profile_config("relaxed")
     assert config is not None
     assert "excluded_headers" in config

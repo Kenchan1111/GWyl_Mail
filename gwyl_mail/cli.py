@@ -14,17 +14,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .canonical import GWylCanonical
-from .dual_proof import create_proof
 from .doctor import cmd_doctor
+from .dsse_signer import extract_proof_from_dsse, verify_proof_dsse
+from .dual_proof import create_proof
 from .ots_manager import OTSManager
-from .sigstore_identity import extract_identity_from_bundle
-from .dsse_signer import verify_proof_dsse, extract_proof_from_dsse
 
 
 def cmd_canonical(args: argparse.Namespace) -> int:
     data = Path(args.eml).read_bytes()
     msg = BytesParser(policy=policy.default).parsebytes(data)
-    profile = getattr(args, 'profile', 'strict')  # SPRINT 6.2.1
+    profile = getattr(args, "profile", "strict")  # SPRINT 6.2.1
     h = GWylCanonical.hash(msg, profile=profile)
     print(h)
     return 0
@@ -34,31 +33,44 @@ def _tool_gaps(use_dsse: bool) -> List[tuple]:
     """List (tool, impact) pairs for external tools missing from PATH (SPRINT 7)."""
     missing: List[tuple] = []
     if use_dsse and not _has("cosign"):
-        missing.append(("cosign", "proof will NOT be signed (unsigned DSSE envelope, metadata tampering undetectable)"))
+        missing.append(
+            (
+                "cosign",
+                "proof will NOT be signed (unsigned DSSE envelope, metadata tampering undetectable)",
+            )
+        )
     if not _has("ots"):
-        missing.append(("ots", "no Bitcoin anchoring (opentimestamps status FAILED, trust level capped at MEDIUM)"))
+        missing.append(
+            (
+                "ots",
+                "no Bitcoin anchoring (opentimestamps status FAILED, trust level capped at MEDIUM)",
+            )
+        )
     return missing
 
 
 def _print_degraded_banner(missing: List[tuple]) -> None:
-    print("", file=sys.stderr)
+    print(file=sys.stderr)
     print("=" * 72, file=sys.stderr)
     print("⚠️  DEGRADED PROOF — REDUCED GUARANTEES (--allow-degraded)", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
     for tool, impact in missing:
         print(f"⚠️  {tool} not found: {impact}", file=sys.stderr)
     print("⚠️  The proof records the content hash but carries NO signature and/or", file=sys.stderr)
-    print("⚠️  NO blockchain timestamp. Run 'gwyl-mail doctor' to fix the environment.", file=sys.stderr)
+    print(
+        "⚠️  NO blockchain timestamp. Run 'gwyl-mail doctor' to fix the environment.",
+        file=sys.stderr,
+    )
     print("=" * 72, file=sys.stderr)
-    print("", file=sys.stderr)
+    print(file=sys.stderr)
 
 
 def cmd_proof(args: argparse.Namespace) -> int:
     data = Path(args.eml).read_bytes()
     msg = BytesParser(policy=policy.default).parsebytes(data)
-    use_dsse = not getattr(args, 'no_dsse', False)
-    profile = getattr(args, 'profile', 'strict')  # SPRINT 6.2.1
-    allow_degraded = bool(getattr(args, 'allow_degraded', False))
+    use_dsse = not getattr(args, "no_dsse", False)
+    profile = getattr(args, "profile", "strict")  # SPRINT 6.2.1
+    allow_degraded = bool(getattr(args, "allow_degraded", False))
 
     # SPRINT 7: refuse silent degradation. Without cosign the DSSE envelope is
     # unsigned; without ots there is no Bitcoin anchoring. Producing such a
@@ -68,9 +80,15 @@ def cmd_proof(args: argparse.Namespace) -> int:
         print("ERROR: refusing to create a degraded proof.", file=sys.stderr)
         for tool, impact in missing:
             print(f"  - {tool} not found: {impact}", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Fix: install the missing tools (see GETTING_STARTED.md), then check with 'gwyl-mail doctor'.", file=sys.stderr)
-        print("Or: pass --allow-degraded to create the proof anyway (hash-only guarantees).", file=sys.stderr)
+        print(file=sys.stderr)
+        print(
+            "Fix: install the missing tools (see GETTING_STARTED.md), then check with 'gwyl-mail doctor'.",
+            file=sys.stderr,
+        )
+        print(
+            "Or: pass --allow-degraded to create the proof anyway (hash-only guarantees).",
+            file=sys.stderr,
+        )
         return 2
     if missing and allow_degraded:
         _print_degraded_banner(missing)
@@ -85,11 +103,17 @@ def cmd_proof(args: argparse.Namespace) -> int:
     # envelope and OTS status are inspected after the fact.
     is_envelope = isinstance(proof, dict) and "payloadType" in proof
     if use_dsse and is_envelope and not proof.get("signatures"):
-        print(f"UNSIGNED DSSE proof written to {out} (profile: {profile}) — signature missing", file=sys.stderr)
+        print(
+            f"UNSIGNED DSSE proof written to {out} (profile: {profile}) — signature missing",
+            file=sys.stderr,
+        )
     elif use_dsse and is_envelope:
         print(f"DSSE-signed proof written to {out} (profile: {profile})")
     elif use_dsse:
-        print(f"DSSE signing was requested but the output is not a DSSE envelope: {out}", file=sys.stderr)
+        print(
+            f"DSSE signing was requested but the output is not a DSSE envelope: {out}",
+            file=sys.stderr,
+        )
     else:
         print(f"Proof written to {out} (profile: {profile}, DSSE disabled)")
 
@@ -97,14 +121,74 @@ def cmd_proof(args: argparse.Namespace) -> int:
     if isinstance(inner, dict):
         ots_status = (inner.get("opentimestamps", {}) or {}).get("status")
         if ots_status == "FAILED":
-            print("⚠️  OpenTimestamps anchoring FAILED: no Bitcoin timestamp in this proof.", file=sys.stderr)
+            print(
+                "⚠️  OpenTimestamps anchoring FAILED: no Bitcoin timestamp in this proof.",
+                file=sys.stderr,
+            )
         elif ots_status == "PENDING":
-            print("OpenTimestamps submitted: Bitcoin confirmation expected within ~48h (run 'gwyl-mail upgrade-ots <proof-file>' later).")
+            print(
+                "OpenTimestamps submitted: Bitcoin confirmation expected within ~48h (run 'gwyl-mail upgrade-ots <proof-file>' later)."
+            )
     return 0
 
 
 def _has(cmd: str) -> bool:
     return shutil.which(cmd) is not None
+
+
+# SPRINT 8: human-readable explanations for normalized reason codes (KPI_POC §6).
+# Keys are bare codes; parameterized reasons like "canonical_ok(profile=x)"
+# are looked up on their prefix. Printed to stderr so stdout stays pure JSON.
+REASON_DESCRIPTIONS: Dict[str, str] = {
+    "canonical_ok": "le contenu du message correspond exactement au hash de la preuve",
+    "canonical_mismatch": "le contenu du message DIFFÈRE du hash de la preuve (message modifié ou profil de canonicalisation inadapté)",
+    "canonical_error": "impossible de lire ou canoniser le message EML",
+    "profile_missing_assumed_strict": "la preuve n'indique pas son profil, 'strict' supposé (preuve ancienne)",
+    "profile_override": "profil de vérification forcé manuellement via --profile-override",
+    "dsse_unsigned_envelope": "la preuve n'est PAS signée (enveloppe DSSE sans signature) : les métadonnées peuvent être modifiées sans détection",
+    "dsse_verification_failed": "la signature DSSE de la preuve est invalide ou invérifiable",
+    "sigstore_timeout": "délai dépassé lors de la vérification du bundle Sigstore",
+    "bundle_path_invalid": "chemin du bundle Sigstore invalide (hors répertoire autorisé ou inexistant)",
+    "ots_verify_failed": "la preuve OpenTimestamps a échoué à la vérification",
+    "ots_pending": "l'ancrage Bitcoin est encore en attente de confirmation (~48h), réessayez après 'upgrade-ots'",
+    "ots_cli_missing": "le binaire 'ots' n'est pas installé : vérification Bitcoin impossible (gwyl-mail doctor)",
+    "policy_ok": "la politique d'identité est respectée",
+    "policy_violation": "la politique d'identité est VIOLÉE (expéditeur/émetteur non autorisé)",
+    "policy_error": "erreur lors de l'évaluation de la politique d'identité",
+    "identity_ok": "l'identité du signataire correspond à celle attendue",
+    "identity_mismatch": "l'identité du signataire NE correspond PAS à celle attendue",
+    "issuer_ok": "l'émetteur OIDC est autorisé",
+    "issuer_not_allowed": "l'émetteur OIDC n'est PAS autorisé",
+    "coherence_ok": "les horodatages Rekor et Bitcoin sont cohérents (<24h)",
+    "coherence_failed": "écart ANORMAL (>24h) entre les horodatages Rekor et Bitcoin : preuve suspecte",
+    "coherence_unknown": "impossible d'évaluer la cohérence temporelle Rekor/Bitcoin",
+}
+
+
+def _explain_reasons(reasons: List[str]) -> None:
+    for reason in reasons:
+        code = reason.split("(", 1)[0].strip()
+        if code.startswith("profile_overridden_") or code.startswith("profile_override_"):
+            code = "profile_override"
+        desc = REASON_DESCRIPTIONS.get(code)
+        if desc:
+            marker = (
+                "❌"
+                if any(
+                    w in code
+                    for w in (
+                        "mismatch",
+                        "failed",
+                        "violation",
+                        "invalid",
+                        "error",
+                        "not_allowed",
+                        "unsigned",
+                    )
+                )
+                else "ℹ️ "
+            )
+            print(f"  {marker} {code} : {desc}", file=sys.stderr)
 
 
 def _safe_in_dir(target: Path, base: Path) -> bool:
@@ -164,7 +248,12 @@ def cmd_verify(args: argparse.Namespace) -> int:
     try:
         proof_data = json.loads(proof_path.read_text())
     except Exception as e:
-        entry = {"timestamp": now, "action": "verify", "status": "error", "error": f"invalid_proof_json:{e}"}
+        entry = {
+            "timestamp": now,
+            "action": "verify",
+            "status": "error",
+            "error": f"invalid_proof_json:{e}",
+        }
         _append_audit(entry)
         print(json.dumps({"error": "invalid_proof_json"}))
         return 1
@@ -174,20 +263,26 @@ def cmd_verify(args: argparse.Namespace) -> int:
     # signature AND that signature verifies. An unsigned envelope is a
     # legitimate degraded proof but MUST be reported as not signed.
     dsse_signed = False
-    dsse_error = None
     if "payload" in proof_data and "payloadType" in proof_data:
         # DSSE envelope detected
         envelope_has_signature = bool(proof_data.get("signatures"))
         verified, proof, error = verify_proof_dsse(proof_data)
         dsse_signed = verified and envelope_has_signature
-        dsse_error = error
         if not envelope_has_signature:
-            print("⚠️  Proof is an UNSIGNED DSSE envelope (no signature): metadata tampering is NOT detectable.", file=sys.stderr)
+            print(
+                "⚠️  Proof is an UNSIGNED DSSE envelope (no signature): metadata tampering is NOT detectable.",
+                file=sys.stderr,
+            )
             reasons.append("dsse_unsigned_envelope")
         elif not verified:
             reasons.append(f"dsse_verification_failed: {error or 'unknown'}")
             if strict:
-                entry = {"timestamp": now, "action": "verify", "status": "error", "error": f"dsse_verification_failed:{error}"}
+                entry = {
+                    "timestamp": now,
+                    "action": "verify",
+                    "status": "error",
+                    "error": f"dsse_verification_failed:{error}",
+                }
                 _append_audit(entry)
                 print(json.dumps({"error": "dsse_verification_failed", "details": error}))
                 return 1
@@ -207,7 +302,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
         if profile_override:
             effective_profile = profile_override
             if proof_profile and proof_profile != profile_override:
-                print(f"⚠️  Profile override: Using '{profile_override}' instead of proof's '{proof_profile}'", file=sys.stderr)
+                print(
+                    f"⚠️  Profile override: Using '{profile_override}' instead of proof's '{proof_profile}'",
+                    file=sys.stderr,
+                )
                 reasons.append(f"profile_overridden_{proof_profile}_to_{profile_override}")
             else:
                 reasons.append(f"profile_override_{profile_override}")
@@ -215,17 +313,20 @@ def cmd_verify(args: argparse.Namespace) -> int:
             # Warn if profile missing (backward compat with old proofs)
             if proof_profile is None:
                 proof_profile = "strict"
-                print("⚠️  Warning: Proof missing 'profile' field, assuming 'strict' (backward compatibility)", file=sys.stderr)
+                print(
+                    "⚠️  Warning: Proof missing 'profile' field, assuming 'strict' (backward compatibility)",
+                    file=sys.stderr,
+                )
                 reasons.append("profile_missing_assumed_strict")
             effective_profile = proof_profile
 
         actual_hash = GWylCanonical.hash(msg, profile=effective_profile)
-        canonical_ok = (expected_hash == actual_hash)
+        canonical_ok = expected_hash == actual_hash
         if canonical_ok:
             reasons.append(f"canonical_ok(profile={effective_profile})")
         else:
             reasons.append(f"canonical_mismatch(profile={effective_profile})")
-    except Exception as e:
+    except Exception:
         canonical_ok = False
         reasons.append("canonical_error")
 
@@ -239,16 +340,22 @@ def cmd_verify(args: argparse.Namespace) -> int:
         base = Path(".gwyl_mail/proofs/sigstore")
         if _safe_in_dir(bp, base) and bp.exists():
             # Use unique temp file to avoid collisions
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as tmp_file:
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp_file:
                 tmp_file.write((proof.get("canonical", {}) or {}).get("content_hash", ""))
                 tmp_path = tmp_file.name
             try:
-                res = subprocess.run(["cosign", "verify-blob", tmp_path, "--bundle", str(bp)], capture_output=True, text=True, timeout=30)
-                bundle_ok = (res.returncode == 0)
+                res = subprocess.run(
+                    ["cosign", "verify-blob", tmp_path, "--bundle", str(bp)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                bundle_ok = res.returncode == 0
                 if bundle_ok:
                     # SPRINT 3: Use robust identity extraction instead of heuristic
                     try:
                         from .sigstore_identity import extract_identity_from_bundle
+
                         sig_identity = extract_identity_from_bundle(bp)
                         bundle_identity = sig_identity.email
                         bundle_issuer = sig_identity.issuer
@@ -256,8 +363,9 @@ def cmd_verify(args: argparse.Namespace) -> int:
                         # Fallback to old heuristic method if robust extraction fails
                         try:
                             bdata = json.loads(bp.read_text())
+
                             # Heuristic extraction: search for strings containing '@' for identity and issuer-like URLs
-                            def walk(d):
+                            def walk(d: Any) -> None:
                                 nonlocal bundle_identity, bundle_issuer
                                 if isinstance(d, dict):
                                     for k, v in d.items():
@@ -266,13 +374,18 @@ def cmd_verify(args: argparse.Namespace) -> int:
                                             walk(v)
                                         else:
                                             if isinstance(v, str):
-                                                if '@' in v and bundle_identity is None:
+                                                if "@" in v and bundle_identity is None:
                                                     bundle_identity = v
-                                                if ('http://' in v or 'https://' in v or 'issuer' in kl) and bundle_issuer is None:
+                                                if (
+                                                    "http://" in v
+                                                    or "https://" in v
+                                                    or "issuer" in kl
+                                                ) and bundle_issuer is None:
                                                     bundle_issuer = v
                                 elif isinstance(d, list):
                                     for x in d:
                                         walk(x)
+
                             walk(bdata)
                         except Exception:
                             pass
@@ -313,18 +426,20 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if policy_path and policy_path.exists():
         try:
             from .identity_policy import IdentityPolicy
+
             pol = IdentityPolicy(policy_path)
             # Prefer EML From when available
             from_addr = ""
             try:
                 from email.utils import parseaddr
+
                 from_addr = parseaddr(msg.get("From", ""))[1] if canonical_ok else ""
             except Exception:
                 pass
             cert_subj = bundle_identity or ""
             cert_iss = bundle_issuer or ""
-            res = pol.verify(from_addr, cert_subj, cert_iss)
-            policy_ok = res.get("valid", False) or (res.get("enforcement") == "warn")
+            policy_res = pol.verify(from_addr, cert_subj, cert_iss)
+            policy_ok = policy_res.get("valid", False) or (policy_res.get("enforcement") == "warn")
             if policy_ok:
                 reasons.append("policy_ok")
             else:
@@ -355,7 +470,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if rekor_ts and ots_ts:
         try:
             rt = datetime.utcfromtimestamp(int(rekor_ts))
-            ot = datetime.fromisoformat(str(ots_ts).replace('Z', '+00:00'))
+            ot = datetime.fromisoformat(str(ots_ts).replace("Z", "+00:00"))
             delta_seconds = abs((rt - ot).total_seconds())
             delta_h = delta_seconds / 3600.0
 
@@ -366,7 +481,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 "delta_seconds": int(delta_seconds),
                 "delta_hours": round(delta_h, 2),
                 "threshold_hours": 24,
-                "within_threshold": delta_h <= 24
+                "within_threshold": delta_h <= 24,
             }
 
             if delta_h <= 24:
@@ -377,7 +492,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 coherence_ok = False
         except Exception as e:
             reasons.append("coherence_unknown")
-            coherence_details = {"error": f"timestamp_parse_failed: {str(e)}"}
+            coherence_details = {"error": f"timestamp_parse_failed: {e!s}"}
 
     # Trust level
     if ots_ok:
@@ -402,10 +517,13 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if coherence_details is not None:
         summary["coherence_details"] = coherence_details
 
-    status = "ok" if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else "fail"
+    status = (
+        "ok" if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else "fail"
+    )
     audit = {"timestamp": now, "action": "verify", "status": status, **summary}
     _append_audit(audit)
     print(json.dumps(summary, indent=2))
+    _explain_reasons(reasons)
 
     if strict:
         return 0 if (canonical_ok and (bundle_ok or ots_ok) and policy_ok and coherence_ok) else 1
@@ -425,21 +543,39 @@ def main() -> int:
 
     c = sub.add_parser("canonical-hash", help="Compute canonical hash for an EML file")
     c.add_argument("eml")
-    c.add_argument("--profile", choices=["strict", "relaxed"], default="strict", help="Canonicalization profile (Sprint 6.2.1)")
+    c.add_argument(
+        "--profile",
+        choices=["strict", "relaxed"],
+        default="strict",
+        help="Canonicalization profile (Sprint 6.2.1)",
+    )
     c.set_defaults(func=cmd_canonical)
 
     pr = sub.add_parser("create-proof", help="Create proof for an EML file")
     pr.add_argument("eml")
     pr.add_argument("--identity", required=True)
     pr.add_argument("--out", default=".gwyl_mail/proofs/proof.json")
-    pr.add_argument("--no-dsse", action="store_true", help="Disable DSSE signature (backward compatibility)")
-    pr.add_argument("--allow-degraded", action="store_true", help="Allow creating an unsigned/unanchored proof when cosign or ots is missing (reduced guarantees, loudly warned)")
-    pr.add_argument("--profile", choices=["strict", "relaxed"], default="strict", help="Canonicalization profile: 'strict' (default, no MTA tolerance) or 'relaxed' (tolerates MTA modifications)")
+    pr.add_argument(
+        "--no-dsse", action="store_true", help="Disable DSSE signature (backward compatibility)"
+    )
+    pr.add_argument(
+        "--allow-degraded",
+        action="store_true",
+        help="Allow creating an unsigned/unanchored proof when cosign or ots is missing (reduced guarantees, loudly warned)",
+    )
+    pr.add_argument(
+        "--profile",
+        choices=["strict", "relaxed"],
+        default="strict",
+        help="Canonicalization profile: 'strict' (default, no MTA tolerance) or 'relaxed' (tolerates MTA modifications)",
+    )
     pr.set_defaults(func=cmd_proof)
 
     doc = sub.add_parser("doctor", help="Check environment: cosign, ots, Python packages, network")
     doc.add_argument("--json", action="store_true", help="Machine-readable JSON output")
-    doc.add_argument("--skip-network", action="store_true", help="Skip informational network checks")
+    doc.add_argument(
+        "--skip-network", action="store_true", help="Skip informational network checks"
+    )
     doc.set_defaults(func=cmd_doctor)
 
     up = sub.add_parser("upgrade-ots", help="Upgrade an OTS proof file")
@@ -453,11 +589,15 @@ def main() -> int:
     vf.add_argument("--policy", help="Path to identity policy YAML")
     vf.add_argument("--expect-identity", help="Expected signer identity (email)")
     vf.add_argument("--allow-issuer", help="Allowed OIDC issuer substring")
-    vf.add_argument("--profile-override", choices=["strict", "relaxed"], help="Override canonicalization profile (useful for old proofs failing due to MTA modifications)")
+    vf.add_argument(
+        "--profile-override",
+        choices=["strict", "relaxed"],
+        help="Override canonicalization profile (useful for old proofs failing due to MTA modifications)",
+    )
     vf.set_defaults(func=cmd_verify)
 
     args = p.parse_args()
-    return args.func(args)
+    return int(args.func(args))
 
 
 if __name__ == "__main__":  # pragma: no cover

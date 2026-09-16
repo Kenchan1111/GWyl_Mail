@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -92,9 +92,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
 
     try:
         timeout_s = int(os.getenv("SIGSTORE_TIMEOUT", "30"))
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout_s
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
         if result.returncode != 0:
             # Graceful fallback
             return SigstoreProof(
@@ -129,11 +127,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
         log_index: Optional[int] = None
 
         # Some cosign bundles include Rekor payload; keep best-effort extraction
-        rekor_entry = (
-            bundle_data.get("rekorEntry")
-            or bundle_data.get("RekorEntry")
-            or None
-        )
+        rekor_entry = bundle_data.get("rekorEntry") or bundle_data.get("RekorEntry") or None
         if isinstance(rekor_entry, dict):
             rekor_ts = rekor_entry.get("integratedTime") or rekor_entry.get("IntegratedTime")
             log_index = rekor_entry.get("logIndex") or rekor_entry.get("LogIndex")
@@ -149,6 +143,7 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
         cert_issuer_extracted: Optional[str] = None
         try:
             from .sigstore_identity import extract_identity_from_bundle
+
             sig_identity = extract_identity_from_bundle(bundle_path)
             cert_identity_extracted = sig_identity.email
             cert_issuer_extracted = sig_identity.issuer or issuer

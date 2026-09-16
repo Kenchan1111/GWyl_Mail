@@ -14,7 +14,8 @@
           "properties": {
             "identity": {"type": ["string", "null"]},
             "issuer": {"type": ["string", "null"]},
-            "extracted_at": {"type": "string"}
+            "extracted_at": {"type": "string"},
+            "matches_requested": {"type": "boolean"}
           }
         },
         {"type": "null"}
@@ -46,6 +47,7 @@
     },
     "sigstore": {
       "type": "object",
+      "required": ["bundle_path", "bundle_digest", "trust_level"],
       "properties": {
         "bundle_path": {"type": ["string", "null"]},
         "bundle_digest": {
@@ -58,18 +60,19 @@
         "rekor_entry": {"type": ["string", "null"]},
         "rekor_timestamp": {"type": ["integer", "null"]},
         "rekor_log_index": {"type": ["integer", "null"]},
-        "trust_level": {"type": "string"}
+        "trust_level": {"type": "string", "enum": ["LOW", "MEDIUM"]}
       }
     },
     "opentimestamps": {
       "type": "object",
+      "required": ["status", "proof_file", "trust_level"],
       "properties": {
-        "status": {"type": "string"},
+        "status": {"type": "string", "enum": ["PENDING", "CONFIRMED", "FAILED"]},
         "proof_file": {"type": ["string", "null"]},
         "submitted_at": {"type": "string"},
         "confirmed_at": {"type": ["string", "null"]},
         "bitcoin_block": {"type": ["integer", "null"]},
-        "trust_level": {"type": "string"}
+        "trust_level": {"type": "string", "enum": ["PENDING", "CONFIRMED", "FAILED", "HIGH"]}
       }
     },
     "coherence": {

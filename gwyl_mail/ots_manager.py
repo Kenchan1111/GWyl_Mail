@@ -26,6 +26,7 @@ class OTSManager:
     def submit(data: bytes, out_dir: Path) -> Path | None:
         out_dir.mkdir(parents=True, exist_ok=True)
         from datetime import datetime, timezone
+
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         f = out_dir / f"hash_{ts}.txt"
         f.write_bytes(data)
@@ -45,22 +46,22 @@ class OTSManager:
         if not _ots_available():
             return OTSStatus(status="PENDING", proof_file=proof_file)
 
-        res = subprocess.run(
-            ["ots", "verify", str(proof_file)],
-            capture_output=True,
-            text=True
-        )
+        res = subprocess.run(["ots", "verify", str(proof_file)], capture_output=True, text=True)
 
         output = (res.stdout or "") + (res.stderr or "")
 
         # Check if pending
-        if "Pending confirmation" in output or "not complete" in output or "pending" in output.lower():
+        if (
+            "Pending confirmation" in output
+            or "not complete" in output
+            or "pending" in output.lower()
+        ):
             return OTSStatus(status="PENDING", proof_file=proof_file)
 
         # Parse bitcoin block if confirmed
         if res.returncode == 0:
             # Example output: "Success! Bitcoin block 829456 attests data existed as of ..."
-            block_match = re.search(r'block\s+(\d+)', output, re.IGNORECASE)
+            block_match = re.search(r"block\s+(\d+)", output, re.IGNORECASE)
             bitcoin_block = int(block_match.group(1)) if block_match else None
 
             # SPRINT 3: Extract REAL timestamp using ots info
@@ -70,7 +71,7 @@ class OTSManager:
                 status="CONFIRMED",
                 proof_file=proof_file,
                 bitcoin_block=bitcoin_block,
-                confirmed_at=confirmed_at
+                confirmed_at=confirmed_at,
             )
 
         # Default: failed or pending
@@ -95,10 +96,7 @@ class OTSManager:
         try:
             # Run ots info to get detailed timestamp information
             res = subprocess.run(
-                ["ots", "info", str(proof_file)],
-                capture_output=True,
-                text=True,
-                timeout=10
+                ["ots", "info", str(proof_file)], capture_output=True, text=True, timeout=10
             )
 
             if res.returncode != 0:
@@ -111,14 +109,15 @@ class OTSManager:
             # Strategy 1: JSON parsing (most reliable if available)
             try:
                 import json
+
                 # Try to find JSON block in output
-                json_start = output.find('{')
-                json_end = output.rfind('}')
+                json_start = output.find("{")
+                json_end = output.rfind("}")
                 if json_start >= 0 and json_end > json_start:
-                    json_str = output[json_start:json_end + 1]
+                    json_str = output[json_start : json_end + 1]
                     data = json.loads(json_str)
                     # Look for timestamp fields in JSON
-                    for key in ['timestamp', 'confirmed_at', 'block_time', 'time']:
+                    for key in ["timestamp", "confirmed_at", "block_time", "time"]:
                         if key in data:
                             ts_value = data[key]
                             if isinstance(ts_value, int) and ts_value > 1000000000:
@@ -127,7 +126,7 @@ class OTSManager:
                                 return dt.isoformat().replace("+00:00", "Z")
                             elif isinstance(ts_value, str):
                                 # Try parsing as ISO string
-                                dt = datetime.fromisoformat(ts_value.replace('Z', '+00:00'))
+                                dt = datetime.fromisoformat(ts_value.replace("Z", "+00:00"))
                                 return dt.isoformat().replace("+00:00", "Z")
             except Exception:
                 pass
@@ -135,11 +134,17 @@ class OTSManager:
             # Strategy 2: Regex patterns for different OTS output formats
             # Pattern 1: "as of Thu 11 Jan 2025 20:15:43 UTC"
             time_patterns = [
-                (r'as of\s+([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{2}:\d{2}:\d{2})', "%a %d %b %Y %H:%M:%S"),
+                (
+                    r"as of\s+([A-Za-z]{3}\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{2}:\d{2}:\d{2})",
+                    "%a %d %b %Y %H:%M:%S",
+                ),
                 # Pattern 2: "on Wed Jan 15 2025 12:34:56"
-                (r'on\s+([A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2})', "%a %b %d %Y %H:%M:%S"),
+                (
+                    r"on\s+([A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2})",
+                    "%a %b %d %Y %H:%M:%S",
+                ),
                 # Pattern 3: "at 2025-01-15 12:34:56"
-                (r'at\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', "%Y-%m-%d %H:%M:%S"),
+                (r"at\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})", "%Y-%m-%d %H:%M:%S"),
             ]
 
             for pattern, date_format in time_patterns:
@@ -155,26 +160,26 @@ class OTSManager:
 
             # Strategy 3: ISO format "2025-01-11T20:15:43Z" or similar
             iso_patterns = [
-                r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?)',
-                r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
+                r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?)",
+                r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})",
             ]
 
             for pattern in iso_patterns:
                 iso_match = re.search(pattern, output)
                 if iso_match:
-                    time_str = iso_match.group(1).replace(' ', 'T')
+                    time_str = iso_match.group(1).replace(" ", "T")
                     try:
-                        dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
                         return dt.isoformat().replace("+00:00", "Z")
                     except ValueError:
                         continue
 
             # Strategy 4: Unix timestamp variations
             unix_patterns = [
-                r'timestamp:\s*(\d{10,})',
-                r'time:\s*(\d{10,})',
-                r'block_time:\s*(\d{10,})',
-                r'confirmed:\s*(\d{10,})',
+                r"timestamp:\s*(\d{10,})",
+                r"time:\s*(\d{10,})",
+                r"block_time:\s*(\d{10,})",
+                r"confirmed:\s*(\d{10,})",
             ]
 
             for pattern in unix_patterns:

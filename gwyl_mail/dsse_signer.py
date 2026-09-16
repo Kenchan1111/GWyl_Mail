@@ -7,7 +7,6 @@ DSSE spec: https://github.com/secure-systems-lab/dsse
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import shutil
 import subprocess
@@ -19,12 +18,12 @@ from typing import Any, Dict, Optional
 
 class DSSEError(RuntimeError):
     """DSSE signing or verification error."""
-    pass
 
 
 @dataclass
 class DSSEEnvelope:
     """DSSE envelope structure."""
+
     payload: str  # base64-encoded proof JSON
     payload_type: str  # "application/json"
     signatures: list[Dict[str, Any]]  # List of signature objects
@@ -70,7 +69,7 @@ def sign_proof_dsse(proof: Dict[str, Any], identity: Optional[str] = None) -> Di
         return {
             "payload": payload_b64,
             "payloadType": "application/json",
-            "signatures": []  # Empty = unsigned
+            "signatures": [],  # Empty = unsigned
         }
 
     # Create temp file for payload
@@ -101,20 +100,11 @@ def sign_proof_dsse(proof: Dict[str, Any], identity: Optional[str] = None) -> Di
             "/dev/null",
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode != 0 or not sig_path.exists():
             # Fallback: unsigned envelope
-            return {
-                "payload": payload_b64,
-                "payloadType": "application/json",
-                "signatures": []
-            }
+            return {"payload": payload_b64, "payloadType": "application/json", "signatures": []}
 
         # Read signature
         sig_b64 = sig_path.read_text().strip()
@@ -129,18 +119,14 @@ def sign_proof_dsse(proof: Dict[str, Any], identity: Optional[str] = None) -> Di
                     "sig": sig_b64,
                     "bundle": str(bundle_path),
                 }
-            ]
+            ],
         }
 
         return envelope
 
     except (subprocess.TimeoutExpired, Exception):
         # Fallback: unsigned envelope
-        return {
-            "payload": payload_b64,
-            "payloadType": "application/json",
-            "signatures": []
-        }
+        return {"payload": payload_b64, "payloadType": "application/json", "signatures": []}
     finally:
         try:
             payload_path.unlink(missing_ok=True)
@@ -230,12 +216,7 @@ def verify_proof_dsse(envelope: Dict[str, Any]) -> tuple[bool, Dict[str, Any], O
                 ".*",  # Accept any issuer
             ]
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode == 0:
                 return True, proof, None
@@ -272,6 +253,7 @@ def extract_proof_from_dsse(envelope: Dict[str, Any]) -> Optional[Dict[str, Any]
             return None
 
         proof_json = base64.b64decode(payload_b64).decode()
-        return json.loads(proof_json)
+        proof: Dict[str, Any] = json.loads(proof_json)
+        return proof
     except Exception:
         return None

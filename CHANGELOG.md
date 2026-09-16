@@ -9,6 +9,38 @@ et ce projet adhère à [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Sprint 8: Solidité du noyau (2026-09-17)
+
+#### Ajouté
+- **tests/test_sigstore_timestamp.py** (16 tests): chemins de dégradation de
+  `sign_and_timestamp` (cosign absent, échec returncode, bundle non créé,
+  timeout), parsing des variantes rekorEntry/rekorEntry, succès DSSE et
+  échecs de vérification d'enveloppe.
+- **gwyl_mail/identity_policy.py**: `allowed_identities` enfin appliqué
+  (chargé depuis Sprint 2 mais jamais vérifié) — allowlist du sujet
+  certificat, vide = tout accepter (compat). Résultat étendu avec `identity`.
+- **gwyl_mail/cli.py**: `REASON_DESCRIPTIONS` — explications humaines des
+  codes de raison normalisés (KPI_POC §6), affichées sur stderr après le
+  JSON de vérification (stdout reste pur JSON).
+- **Makefile**: cibles `test-poc` (référencée par KPI_POC.md, exister enfin)
+  et `doctor`.
+- **.github/workflows/ci.yml**: job lint (ruff + black --check + mypy),
+  matrix de tests Python 3.9→3.12, job dédié avec opentimestamps-client.
+
+#### Modifié
+- **gwyl_mail/schemas/proof-v0.2.0.json**: durci — `required` sur les
+  sous-champs structuraux de sigstore/opentimestamps, enums sur `status` et
+  `trust_level`, `signer.matches_requested` dans le schéma. Les preuves
+  dégradées légitimes restent valides (test de non-régression).
+- **Codebase entier**: formatage black + ruleset ruff explicite
+  (E/F/W/I/B) + mypy propre (21 erreurs résolues: casts ciblés, annotations,
+  collision de variable `res` dans cmd_verify, `raise ... from`).
+- **pyproject.toml**: mypy python_version 3.10 (mypy ≥1.19 ne supporte plus
+  3.9; le runtime reste 3.9+).
+
+#### Résultat
+124/124 tests, coverage 68%, ruff/black/mypy propres (la CI les exige désormais).
+
 ### Sprint 7: Vérité & Onboarding (2026-09-17)
 
 #### Corrigé
