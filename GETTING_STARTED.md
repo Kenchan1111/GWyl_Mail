@@ -1,278 +1,183 @@
 # Getting Started - GWyl Mail
 
-Guide rapide pour démarrer le développement sur GWyl Mail.
+Guide de démarrage : installation, vérification de l'environnement, premiers pas.
 
 ---
 
-## 📦 Installation
+## 📦 Prérequis (réels)
 
-### Prérequis
+GWyl Mail s'appuie sur **deux binaires externes** qui ne s'installent pas via les
+dépendances pip du projet. Sans eux, `create-proof` refuse de s'exécuter (ou
+requiert `--allow-degraded`, garanties réduites : pas de signature, pas
+d'ancrage Bitcoin).
 
-- Python 3.9+
-- pip
-- virtualenv (recommandé)
+| Outil | Rôle | Installation |
+|---|---|---|
+| Python ≥ 3.9 | runtime | système |
+| **cosign** | signature Sigstore (DSSE) + timestamp Rekor | binaire Go — voir ci-dessous |
+| **ots** | ancrage OpenTimestamps (Bitcoin) | `pip install opentimestamps-client` (fournit le binaire `ots`) |
 
-### Setup environnement
+### Installer cosign
+
+cosign est un binaire Go distribué par Sigstore (ce n'est **pas** un paquet pip) :
 
 ```bash
-# Cloner le repo
-cd /home/zack/GWyl_Mail
+# Linux amd64 — ajustez la version/ARCH à la dernière release :
+curl -sSfL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 \
+  -o ~/.local/bin/cosign && chmod +x ~/.local/bin/cosign
 
-# Créer environnement virtuel
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate   # Windows
+# ou via package manager si disponible (ex. Fedora : dnf install cosign)
+cosign version
+```
 
-# Installer dépendances dev
-make dev
+> Note : `pip install sigstore` installe la bibliothèque Python sigstore
+> (utilisée pour l'extraction d'identité), **pas** le binaire cosign.
 
-# Vérifier installation
-python -c "import gwyl_mail; print(gwyl_mail.__version__)"
-# → 0.1.0
+### Installer ots
+
+```bash
+pip install opentimestamps-client   # fournit la commande 'ots'
+ots --version
 ```
 
 ---
 
-## 🏗️ Structure du Projet
+## 🚀 Installation du projet
+
+```bash
+git clone https://github.com/Kenchan1111/GWyl_Mail.git
+cd GWyl_Mail
+
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+make dev                        # pip install -e ".[dev]"
+```
+
+## 🩺 Étape 1 : vérifier l'environnement
+
+```bash
+gwyl-mail doctor
+```
+
+Vérifie cosign, ots, les paquets Python requis et (best-effort) la joignabilité
+de Rekor et d'un calendrier OTS. Code retour 0 = environnement complet ;
+`--json` pour une sortie machine, `--skip-network` pour l'offline.
+
+## 🔧 Premiers pas
+
+```bash
+# 1. Hash canonique d'un email (aucun outil externe requis)
+gwyl-mail canonical-hash examples/sample_plain_text.eml
+
+# 2. Créer une preuve complète (signée DSSE + ancrage Bitcoin soumis)
+#    cosign ouvrira une authentification OIDC (navigateur) au premier usage
+gwyl-mail create-proof examples/sample_plain_text.eml \
+    --identity vous@example.com --out .gwyl_mail/proofs/proof.json
+
+# 3. Vérifier un email contre sa preuve (offline pour le hash)
+gwyl-mail verify --eml examples/sample_plain_text.eml \
+    --proof .gwyl_mail/proofs/proof.json --strict
+
+# 4. Après ~48h : confirmer l'ancrage Bitcoin
+gwyl-mail upgrade-ots .gwyl_mail/proofs/ots/hash_*.ots
+```
+
+**Sans cosign/ots** : `create-proof` échoue volontairement avec un message
+explicite. Pour créer malgré tout une preuve hash-only :
+`--allow-degraded` (bandeau d'avertissement, garanties réduites).
+
+---
+
+## 🏗️ Structure du projet
 
 ```
 GWyl_Mail/
-├── docs/
-│   └── specs/              # Spécifications techniques
-│       ├── CANONICALIZATION_v0.md
-│       ├── PROOF_SCHEMA_v0.md
-│       ├── IDENTITY_POLICY_v0.md
-│       ├── KPI_POC.md
-│       └── TEST_VECTORS_v0.md
-│
-├── gwyl_mail/              # Code source
-│   ├── __init__.py
-│   ├── canonical.py        # ⏳ À implémenter
-│   ├── sigstore_timestamp.py
-│   ├── ots_manager.py
-│   ├── dual_proof.py
-│   ├── identity_policy.py
-│   └── cli.py
-│
-├── tests/                  # Tests unitaires
-│   ├── test_canonical.py   # ⏳ À créer
-│   ├── test_sigstore.py
-│   ├── test_ots.py
-│   └── test_dual_proof.py
-│
-├── examples/               # Exemples d'usage
-│
-├── .gwyl_mail/            # Configuration locale
-│   ├── identity_policy.yml
-│   └── proofs/
-│
-├── pyproject.toml         # Configuration Python
-├── Makefile               # Commandes développement
-└── README.md
+├── gwyl_mail/                 # Code source
+│   ├── canonical.py           #   Canonicalisation DKIM-inspired (strict/relaxed)
+│   ├── sigstore_timestamp.py  #   cosign sign-blob + bundle Rekor
+│   ├── sigstore_identity.py   #   Extraction identité X.509 (SAN, issuer OIDC)
+│   ├── ots_manager.py         #   Ancrage OpenTimestamps
+│   ├── dsse_signer.py         #   Enveloppe DSSE (signature de la preuve)
+│   ├── dual_proof.py          #   Assemblage de la preuve
+│   ├── identity_policy.py     #   Politique From ↔ certificat
+│   ├── validation.py          #   Validation JSON Schema
+│   ├── doctor.py              #   Vérification environnement
+│   └── cli.py                 #   CLI (canonical-hash, create-proof, verify,
+│                              #   upgrade-ots, doctor)
+├── tests/                     # 104 tests (pytest, déterministes sans outils)
+├── examples/                  #   EMLs d'exemple + vérificateur standalone
+├── docs/specs/                #   Spécifications normatives
+├── pyproject.toml
+└── Makefile
 ```
 
 ---
 
-## 🚀 Commandes Développement
-
-### Makefile
+## 🛠️ Commandes développement
 
 ```bash
-make help        # Afficher aide
-make install     # Installer production
-make dev         # Installer développement
-make test        # Lancer tests
-make lint        # Vérifier code (ruff, mypy)
-make format      # Formatter code (black)
-make clean       # Nettoyer artifacts
-```
-
-### Tests
-
-```bash
-# Tous les tests
-pytest
-
-# Test spécifique
-pytest tests/test_canonical.py -v
-
-# Avec coverage
-pytest --cov=gwyl_mail --cov-report=html
+make help        # Aide
+make dev         # Installer dépendances dev
+make test        # Tests (aucun binaire externe requis)
+make lint        # ruff + mypy
+make format      # black
 ```
 
 ---
 
-## 📚 Lire les Spécifications
+## 📚 Pour aller plus loin
 
 ### Ordre de lecture recommandé
 
-1. **README.md**: Vue d'ensemble du projet
-2. **PROJECT_STATUS.md**: État actuel et roadmap
-3. **docs/specs/CANONICALIZATION_v0.md**: Algorithme de base (PRIORITÉ 1)
-4. **docs/specs/PROOF_SCHEMA_v0.md**: Structure des preuves
-5. **docs/specs/IDENTITY_POLICY_v0.md**: Gestion identité
-6. **docs/specs/TEST_VECTORS_v0.md**: Vecteurs de test
-7. **docs/specs/KPI_POC.md**: Critères de succès
+1. **README.md** : vue d'ensemble
+2. **docs/specs/CANONICALIZATION_v0.md** : algorithme de canonicalisation
+3. **docs/specs/PROOF_SCHEMA_v0.md** : structure des preuves
+4. **docs/specs/IDENTITY_POLICY_v0.md** : politique d'identité
+5. **docs/specs/KPI_POC.md** : critères de succès du PoC
 
-### Concepts clés à comprendre
+### Concepts clés
 
-**Canonicalisation**:
-- DKIM-inspired normalization
-- 5 headers canoniques: from, to, subject, date, message-id
-- Normalisation corps: CRLF→LF, trim whitespace
-- Attachments: hash SHA-256, tri NFC
-- Profils: strict (v0) vs relaxed (v1)
+**Canonicalisation** : 5 en-têtes canoniques (from, to, subject, date,
+message-id), normalisation du corps (CRLF→LF, trim), attachments hashés ;
+profils `strict` (aucune tolérance) et `relaxed` (tolère les mutations MTA).
 
-**Dual Timestamping**:
-- Sigstore: Timestamp immédiat (Rekor), trust MEDIUM
-- OpenTimestamps: Ancrage Bitcoin différé, trust HIGH
-- Cohérence: |rekor_ts - ots_ts| < 24h
+**Dual timestamping** : Sigstore/Rekor (immédiat, trust MEDIUM) +
+OpenTimestamps/Bitcoin (différé ~48h, trust HIGH) ; cohérence exigée < 24h.
 
-**Identity Policy**:
-- Mapping: From (email) ↔ cert_subject (Sigstore)
-- Modes: warn (log) → strict (reject)
-- Tolérances: exact / domain / alias
+**DSSE** : la preuve JSON elle-même est signée (enveloppe DSSE via cosign) pour
+détecter la falsification des métadonnées. Une enveloppe non signée est
+rapportée comme telle (`dsse_signed: false`).
 
 ---
 
-## 🛠️ Premier Sprint: Canonicalisation
+## 🐛 Troubleshooting
 
-### Objectif
+**`ERROR: refusing to create a degraded proof`**
+→ cosign ou ots manque. `gwyl-mail doctor` pour le diagnostic, voir
+« Prérequis » ci-dessus pour l'installation.
 
-Implémenter et tester le module de canonicalisation selon spec v0.2.0.
+**`dsse_signed: false` + raison `dsse_unsigned_envelope`**
+→ La preuve a été créée sans signature (cosign absent ou échec OIDC).
+Recréez-la avec cosign fonctionnel pour obtenir une preuve signée.
 
-### Tâches
+**`ots: FAILED` dans la preuve**
+→ Submission OTS impossible (binaire absent ou calendrier injoignable).
+Réessayez plus tard ; l'ancrage existant se confirme avec `upgrade-ots`.
 
-1. **Créer `gwyl_mail/canonical.py`**:
-   ```python
-   class GWylCanonical:
-       VERSION = "0.2.0"
-       HEADERS = ['from', 'to', 'subject', 'date', 'message-id']
-
-       @classmethod
-       def canonicalize(cls, message: EmailMessage, profile: str = 'strict') -> bytes:
-           """Canonise message selon profil"""
-           pass  # À implémenter
-
-       @classmethod
-       def hash(cls, message: EmailMessage, profile: str = 'strict') -> str:
-           """Hash SHA-256 du message canonique"""
-           pass  # À implémenter
-   ```
-
-2. **Créer `tests/test_canonical.py`**:
-   - Test vectors TV1-TV5
-   - Edge cases (encoding, Unicode, HTML)
-   - Validation SHA-256 attendus
-
-3. **Valider contre TEST_VECTORS_v0.md**:
-   ```bash
-   pytest tests/test_canonical.py -v
-   # Tous les tests doivent passer ✅
-   ```
-
-### Critères d'acceptation
-
-- ✅ Classe `GWylCanonical` implémentée
-- ✅ Méthodes `canonicalize()` et `hash()`
-- ✅ RFC 2047 (encoded-words) décodage
-- ✅ RFC 5322 (folding) unfolding
-- ✅ Unicode NFC normalization
-- ✅ Tous les test vectors passent
-- ✅ Coverage ≥90%
-
----
-
-## 📖 Ressources
-
-### Documentation externe
-
-- **Sigstore**: https://docs.sigstore.dev
-- **OpenTimestamps**: https://opentimestamps.org
-- **DKIM (RFC 6376)**: https://www.rfc-editor.org/rfc/rfc6376.html
-- **JCS (RFC 8785)**: https://tools.ietf.org/html/rfc8785
-- **DSSE**: https://github.com/secure-systems-lab/dsse
-
-### Standards référencés
-
-- RFC 2047 (Encoded-words)
-- RFC 5322 (Email format)
-- RFC 6376 (DKIM)
-- RFC 8785 (JSON Canonicalization Scheme)
-- Unicode TR15 (Normalization Forms)
-
----
-
-## 🐛 Debugging & Troubleshooting
-
-### Problèmes courants
-
-**Import Error: No module named 'gwyl_mail'**:
+**Import Error: No module named 'gwyl_mail`**
 ```bash
-# Installer en mode éditable
 pip install -e .
 ```
 
-**Tests échouent: SHA-256 mismatch**:
-- Vérifier normalisation Unicode (NFC)
-- Vérifier line endings (CRLF→LF)
-- Vérifier décodage RFC 2047
-
-**Sigstore/OTS not available**:
-```bash
-# Installer dépendances
-pip install sigstore opentimestamps-client
-```
-
----
-
-## 💡 Conseils Développement
-
-### Best Practices
-
-1. **Lire la spec d'abord**: Comprendre l'algorithme avant de coder
-2. **TDD**: Écrire tests avant implémentation (test vectors disponibles)
-3. **Coverage**: Viser ≥90% de couverture
-4. **Docstrings**: Documenter toutes les fonctions publiques
-5. **Type hints**: Utiliser mypy pour vérification types
-
-### Workflow Git (recommandé)
-
-```bash
-# Créer branche feature
-git checkout -b feature/canonical-implementation
-
-# Commit réguliers
-git commit -m "feat(canonical): implement header canonicalization"
-
-# Tests avant push
-make test lint
-
-# Push et PR
-git push origin feature/canonical-implementation
-```
-
----
-
-## 🎯 Checklist Démarrage
-
-- [ ] Python 3.9+ installé
-- [ ] Environnement virtuel créé
-- [ ] Dépendances dev installées (`make dev`)
-- [ ] Specs lues (CANONICALIZATION_v0.md minimum)
-- [ ] Structure projet comprise
-- [ ] Premier test écrit (`test_canonical.py`)
-- [ ] Premier module implémenté (`canonical.py`)
-- [ ] Tests passent (`make test`)
+**Tests SHA-256 mismatch**
+→ Vérifier normalisation Unicode (NFC), line endings (CRLF→LF), décodage
+RFC 2047, et le profil (`--profile strict|relaxed`).
 
 ---
 
 ## 📞 Support
 
-**Questions techniques**: Voir spécifications dans `docs/specs/`
-**Bugs**: Créer issue GitHub (à venir)
-**Contributions**: Voir `CONTRIBUTORS.md`
-
----
-
-**Bon développement! 🚀**
+- Spécifications : `docs/specs/`
+- Bugs : issues GitHub du dépôt
+- Contributions : `CONTRIBUTING.md`

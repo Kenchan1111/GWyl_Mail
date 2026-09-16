@@ -49,6 +49,11 @@ def sign_and_timestamp(data: bytes, identity: str | None = None) -> SigstoreProo
 
     If cosign is unavailable or signing fails, returns an offline placeholder proof
     (bundle_path=None) to keep the pipeline usable, and delegates trust to OTS.
+
+    Note: `identity` is informational only. cosign signs keylessly with the
+    identity of the logged-in OIDC session; the effective signer identity is
+    read back from the certificate (cert_identity). Callers comparing the two
+    (e.g. dual_proof.create_proof) surface any divergence.
     """
     if not _cosign_available():
         return SigstoreProof(

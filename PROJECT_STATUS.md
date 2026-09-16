@@ -1,8 +1,8 @@
 # GWyl Mail - État du Projet
 
-**Date**: 2025-10-12
-**Version**: 0.1.0 (PoC - Sprint 3 complété)
-**Status**: Implémentation core opérationnelle, 49/49 tests passing
+**Date**: 2026-09-17
+**Version**: 0.1.0 (PoC - Sprint 7 complété)
+**Status**: Noyau honnête et testé, 104/104 tests passing, coverage 62%
 
 ---
 
@@ -174,20 +174,62 @@
 
 ---
 
+## ✅ Sprint 5: DSSE Signature & Identity - COMPLÉTÉ (2025-10-13)
+
+- Signature DSSE de la preuve JSON (`gwyl_mail/dsse_signer.py`)
+- Extraction d'identité à la création (`signer` dans la preuve)
+- Issuer matching sécurisé (exact ou suffixe avec frontière de point)
+- Path hardening (symlinks bloqués dans `_safe_in_dir`)
+- Coherence details Rekor↔OTS + privacy metadata (`from_hash`)
+
+## ✅ Sprint 6 (partiel): Relaxed Canonicalization - COMPLÉTÉ (2025-10-13)
+
+- Profils `strict`/`relaxed` avec `canonical_profiles.yml`
+- Flag `--profile` (création) et `--profile-override` (vérification)
+- Liste étendue d'en-têtes MTA exclus en relaxed
+- Non livré (reporté) : tests performance, benchmarks, tests intégration MTA,
+  docs INTEGRATION/PERFORMANCE, workflow release — repris dans le plan Sprint 8-10
+
+## ✅ Sprint 7: Vérité & Onboarding - COMPLÉTÉ (2026-09-17)
+
+**Problème corrigé** : l'outil se taisait ou mentait en mode dégradé.
+
+- `verify`: enveloppe DSSE sans signature → `dsse_signed: false` + raison
+  `dsse_unsigned_envelope` (avant: `true` mensonger)
+- `create-proof`: refus par défaut sans cosign/ots (exit 2), `--allow-degraded`
+  pour opt-in explicite avec bandeau d'avertissement, message final basé sur le
+  contenu réellement produit
+- Nouvelle commande `doctor`: diagnostic environnement (cosign, ots, paquets,
+  réseau) avec `--json`
+- Divergence identité demandée ↔ identité effective du certificat détectée
+  (`signer.matches_requested`)
+- GETTING_STARTED.md réécrit (prérequis réels: cosign binaire Go, ots pip)
+- pyproject.toml corrigé (URLs dépôt, maintainers)
+- Tests: +27 (test_cli_usability.py, test_ots_manager.py) → **104/104,
+  coverage 62%** (ots_manager: 21% → 86%)
+
+**Security Score**: 9.5/10 (honnêteté des sorties en mode dégradé)
+
+---
+
 ## 🧪 Tests - État Actuel
 
 ### Tests unitaires (tests/)
 
 | Fichier | Tests | Status | Coverage |
 |---------|-------|--------|----------|
-| `test_canonical.py` | 10 | ✅ Pass | Headers, body, attachments |
-| `test_identity_policy.py` | 8 | ✅ Pass | Policy validation |
+| `test_canonical.py` | 11 | ✅ Pass | Headers, body, attachments |
+| `test_canonical_relaxed.py` | 11 | ✅ Pass | Profil relaxed, en-têtes MTA |
+| `test_identity_policy.py` | 17 | ✅ Pass | Policy validation |
 | `test_sigstore_identity.py` | 14 | ✅ Pass | X.509, SAN, issuer |
-| `test_security.py` | ~5 | ✅ Pass | Security edge cases |
+| `test_security.py` | 6 | ✅ Pass | Security edge cases |
 | `test_vectors.py` | 5 | ✅ Pass | RFC compliance |
-| `test_verify.py` | 7 | ✅ Pass | End-to-end verification |
+| `test_verify.py` | 2 | ✅ Pass | Path safety, OTS pending |
+| `test_dsse_signer.py` | 11 | ✅ Pass | DSSE sign/verify |
+| `test_cli_usability.py` | 10 | ✅ Pass | Refus dégradé, honnêteté sorties, doctor |
+| `test_ots_manager.py` | 17 | ✅ Pass | Submit/verify/upgrade, parsing timestamps |
 
-**Total**: 49/49 tests passing, 50% coverage
+**Total**: 104/104 tests passing, 62% coverage (ots_manager 86%)
 
 ---
 
@@ -235,25 +277,28 @@
 
 ## 🎯 Prochaines Étapes
 
-### Sprint 4: Finalization (current)
+### Sprint 8: Solidité du noyau (current)
 
-1. ✅ Fix type hints
-2. ✅ Use unique temp files
-3. ✅ Expose identity/issuer in verify output
-4. ✅ Remove unused dependencies
-5. ✅ Update PROJECT_STATUS.md
-6. ⏳ Update CHANGELOG.md
-7. ⏳ Add relaxed canonicalization profile
-8. ⏳ Run all tests
-9. ⏳ Commit with integrity procedure
+1. Tests sigstore_timestamp.py (placeholder, timeout, parsing bundle) et dsse_signer (chemins d'erreur)
+2. Durcissement du schéma proof-v0.2.0.json (required sur sous-champs structuraux)
+3. Traiter le code mort (`allowed_identities` inutilisé)
+4. Raisons lisibles (table reason_code → message humain)
+5. CI renforcée (matrix 3.9-3.12, lint, coverage) + cibles Makefile (`test-poc`, `doctor`)
 
-### Sprint 5: Production Readiness (optional)
+### Sprint 9: Intégration mail réelle
 
-1. DSSE signature for proof JSON (prevents metadata tampering)
-2. Relaxed canonicalization profile (handle MTA transformations)
-3. Performance benchmarks (KPI validation)
-4. Integration tests (Gmail, Outlook, Postfix)
-5. Documentation updates (README, examples)
+1. Preuves autonomes (bundle Sigstore et .ots embarqués)
+2. `gwyl_mail/eml_io.py` (inject/extract preuve dans un .eml)
+3. CLI `sign` (.eml prêt à envoyer) et `check` (vérification du mail reçu seul)
+4. Tests de tolérance MTA de bout en bout (profil relaxed)
+5. docs/INTEGRATION.md + examples/use_cases/
+
+### Sprint 10: KPIs mesurés & pilote
+
+1. scripts/benchmark.py + tests/test_performance.py (latence <150ms, overhead <50KB)
+2. Interop réelle (Postfix local Docker, procédure Gmail/Outlook)
+3. Packaging & release v0.3.0
+4. Pilote multi-utilisateurs (Phase 3 du README)
 
 ---
 

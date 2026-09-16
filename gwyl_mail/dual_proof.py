@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import sys
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
@@ -75,12 +76,26 @@ def create_proof(message: EmailMessage, identity: str, policy_path: Optional[Pat
             policy_data = None
 
     # Signer metadata (SPRINT 5: Extract at creation time)
+    # SPRINT 7: `identity` is the requested signer; the effective identity is
+    # the cosign OIDC session. Divergence is surfaced, never silent.
+    identity_mismatch = bool(
+        sigstore.cert_identity
+        and identity
+        and sigstore.cert_identity.lower() != identity.lower()
+    )
+    if identity_mismatch:
+        print(
+            f"⚠️  Signer identity mismatch: requested '{identity}' but cosign signed as "
+            f"'{sigstore.cert_identity}' (the OIDC session identity is the effective signer).",
+            file=sys.stderr,
+        )
     signer_data: Optional[Dict[str, Any]] = None
     if sigstore.cert_identity or sigstore.cert_issuer:
         signer_data = {
             "identity": sigstore.cert_identity,
             "issuer": sigstore.cert_issuer,
             "extracted_at": ts,
+            "matches_requested": not identity_mismatch,
         }
 
     proof: Dict[str, Any] = {

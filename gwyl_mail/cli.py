@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from .canonical import GWylCanonical
 from .dual_proof import create_proof
+from .doctor import cmd_doctor
 from .ots_manager import OTSManager
 from .sigstore_identity import extract_identity_from_bundle
 from .dsse_signer import verify_proof_dsse, extract_proof_from_dsse
@@ -29,19 +30,76 @@ def cmd_canonical(args: argparse.Namespace) -> int:
     return 0
 
 
+def _tool_gaps(use_dsse: bool) -> List[tuple]:
+    """List (tool, impact) pairs for external tools missing from PATH (SPRINT 7)."""
+    missing: List[tuple] = []
+    if use_dsse and not _has("cosign"):
+        missing.append(("cosign", "proof will NOT be signed (unsigned DSSE envelope, metadata tampering undetectable)"))
+    if not _has("ots"):
+        missing.append(("ots", "no Bitcoin anchoring (opentimestamps status FAILED, trust level capped at MEDIUM)"))
+    return missing
+
+
+def _print_degraded_banner(missing: List[tuple]) -> None:
+    print("", file=sys.stderr)
+    print("=" * 72, file=sys.stderr)
+    print("⚠️  DEGRADED PROOF — REDUCED GUARANTEES (--allow-degraded)", file=sys.stderr)
+    print("=" * 72, file=sys.stderr)
+    for tool, impact in missing:
+        print(f"⚠️  {tool} not found: {impact}", file=sys.stderr)
+    print("⚠️  The proof records the content hash but carries NO signature and/or", file=sys.stderr)
+    print("⚠️  NO blockchain timestamp. Run 'gwyl-mail doctor' to fix the environment.", file=sys.stderr)
+    print("=" * 72, file=sys.stderr)
+    print("", file=sys.stderr)
+
+
 def cmd_proof(args: argparse.Namespace) -> int:
     data = Path(args.eml).read_bytes()
     msg = BytesParser(policy=policy.default).parsebytes(data)
     use_dsse = not getattr(args, 'no_dsse', False)
     profile = getattr(args, 'profile', 'strict')  # SPRINT 6.2.1
+    allow_degraded = bool(getattr(args, 'allow_degraded', False))
+
+    # SPRINT 7: refuse silent degradation. Without cosign the DSSE envelope is
+    # unsigned; without ots there is no Bitcoin anchoring. Producing such a
+    # proof must be an explicit choice, not a silent fallback.
+    missing = _tool_gaps(use_dsse)
+    if missing and not allow_degraded:
+        print("ERROR: refusing to create a degraded proof.", file=sys.stderr)
+        for tool, impact in missing:
+            print(f"  - {tool} not found: {impact}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Fix: install the missing tools (see GETTING_STARTED.md), then check with 'gwyl-mail doctor'.", file=sys.stderr)
+        print("Or: pass --allow-degraded to create the proof anyway (hash-only guarantees).", file=sys.stderr)
+        return 2
+    if missing and allow_degraded:
+        _print_degraded_banner(missing)
+
     proof = create_proof(msg, identity=args.identity, dsse=use_dsse, profile=profile)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(proof, ensure_ascii=False, indent=2))
-    if use_dsse:
+
+    # Honest reporting based on what was actually produced, not what was
+    # requested: cosign may be present yet fail (network, OIDC), so the
+    # envelope and OTS status are inspected after the fact.
+    is_envelope = isinstance(proof, dict) and "payloadType" in proof
+    if use_dsse and is_envelope and not proof.get("signatures"):
+        print(f"UNSIGNED DSSE proof written to {out} (profile: {profile}) — signature missing", file=sys.stderr)
+    elif use_dsse and is_envelope:
         print(f"DSSE-signed proof written to {out} (profile: {profile})")
+    elif use_dsse:
+        print(f"DSSE signing was requested but the output is not a DSSE envelope: {out}", file=sys.stderr)
     else:
-        print(f"Proof written to {out} (profile: {profile})")
+        print(f"Proof written to {out} (profile: {profile}, DSSE disabled)")
+
+    inner = extract_proof_from_dsse(proof) if is_envelope else proof
+    if isinstance(inner, dict):
+        ots_status = (inner.get("opentimestamps", {}) or {}).get("status")
+        if ots_status == "FAILED":
+            print("⚠️  OpenTimestamps anchoring FAILED: no Bitcoin timestamp in this proof.", file=sys.stderr)
+        elif ots_status == "PENDING":
+            print("OpenTimestamps submitted: Bitcoin confirmation expected within ~48h (run 'gwyl-mail upgrade-ots <proof-file>' later).")
     return 0
 
 
@@ -112,14 +170,21 @@ def cmd_verify(args: argparse.Namespace) -> int:
         return 1
 
     # Check if DSSE envelope (has "payload" and "payloadType")
-    dsse_verified = False
+    # dsse_signed is True only when the envelope carries at least one
+    # signature AND that signature verifies. An unsigned envelope is a
+    # legitimate degraded proof but MUST be reported as not signed.
+    dsse_signed = False
     dsse_error = None
     if "payload" in proof_data and "payloadType" in proof_data:
         # DSSE envelope detected
+        envelope_has_signature = bool(proof_data.get("signatures"))
         verified, proof, error = verify_proof_dsse(proof_data)
-        dsse_verified = verified
+        dsse_signed = verified and envelope_has_signature
         dsse_error = error
-        if not verified:
+        if not envelope_has_signature:
+            print("⚠️  Proof is an UNSIGNED DSSE envelope (no signature): metadata tampering is NOT detectable.", file=sys.stderr)
+            reasons.append("dsse_unsigned_envelope")
+        elif not verified:
             reasons.append(f"dsse_verification_failed: {error or 'unknown'}")
             if strict:
                 entry = {"timestamp": now, "action": "verify", "status": "error", "error": f"dsse_verification_failed:{error}"}
@@ -326,7 +391,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
         "canonical": canonical_ok,
         "sigstore_bundle": bundle_ok,
         "ots": ots_ok,
-        "dsse_signed": dsse_verified,
+        "dsse_signed": dsse_signed,
         "trust_level": trust,
         "reasons": reasons,
         "identity": bundle_identity,
@@ -368,8 +433,14 @@ def main() -> int:
     pr.add_argument("--identity", required=True)
     pr.add_argument("--out", default=".gwyl_mail/proofs/proof.json")
     pr.add_argument("--no-dsse", action="store_true", help="Disable DSSE signature (backward compatibility)")
+    pr.add_argument("--allow-degraded", action="store_true", help="Allow creating an unsigned/unanchored proof when cosign or ots is missing (reduced guarantees, loudly warned)")
     pr.add_argument("--profile", choices=["strict", "relaxed"], default="strict", help="Canonicalization profile: 'strict' (default, no MTA tolerance) or 'relaxed' (tolerates MTA modifications)")
     pr.set_defaults(func=cmd_proof)
+
+    doc = sub.add_parser("doctor", help="Check environment: cosign, ots, Python packages, network")
+    doc.add_argument("--json", action="store_true", help="Machine-readable JSON output")
+    doc.add_argument("--skip-network", action="store_true", help="Skip informational network checks")
+    doc.set_defaults(func=cmd_doctor)
 
     up = sub.add_parser("upgrade-ots", help="Upgrade an OTS proof file")
     up.add_argument("proof")

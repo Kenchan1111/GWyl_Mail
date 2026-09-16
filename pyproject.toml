@@ -13,8 +13,7 @@ authors = [
     {name = "Zack", email = "zack@gwyl.io"},
 ]
 maintainers = [
-    {name = "Claude", email = "claude@anthropic.com"},
-    {name = "ChatGPT", email = "chatgpt@openai.com"},
+    {name = "Zack", email = "zack@gwyl.io"},
 ]
 keywords = [
     "email",
@@ -57,10 +56,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/gwyl/gwyl-mail"
-Documentation = "https://github.com/gwyl/gwyl-mail/tree/main/docs"
-Repository = "https://github.com/gwyl/gwyl-mail"
-Issues = "https://github.com/gwyl/gwyl-mail/issues"
+Homepage = "https://github.com/Kenchan1111/GWyl_Mail"
+Documentation = "https://github.com/Kenchan1111/GWyl_Mail/tree/main/docs"
+Repository = "https://github.com/Kenchan1111/GWyl_Mail"
+Issues = "https://github.com/Kenchan1111/GWyl_Mail/issues"
 
 [project.scripts]
 gwyl-mail = "gwyl_mail.cli:main"

@@ -9,6 +9,45 @@ et ce projet adhère à [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Sprint 7: Vérité & Onboarding (2026-09-17)
+
+#### Corrigé
+- **gwyl_mail/cli.py**: `verify` rapportait `dsse_signed: true` pour une enveloppe
+  DSSE sans signature. Désormais : `dsse_signed: false` + raison
+  `dsse_unsigned_envelope` + avertissement stderr explicite.
+- **gwyl_mail/cli.py**: `create-proof` réussissait silencieusement sans cosign/ots
+  avec un message mensonger ("DSSE-signed proof written"). Désormais :
+  - refus par défaut (exit 2) avec diagnostic si cosign ou ots manque
+  - `--allow-degraded` pour passer outre, avec bandeau d'avertissement
+  - message final basé sur le contenu réellement produit (vérification
+    post-création : signatures de l'enveloppe + statut OTS)
+
+#### Ajouté
+- **gwyl_mail/doctor.py** + sous-commande `gwyl-mail doctor`: vérification de
+  l'environnement (binaires cosign/ots, paquets Python, réseau best-effort),
+  sortie `--json`, `--skip-network` ; exit 1 si un prérequis manque.
+- **gwyl_mail/dual_proof.py**: détection de divergence entre l'identité demandée
+  (`--identity`) et l'identité effective du certificat (session OIDC cosign) ;
+  champ `signer.matches_requested` dans la preuve + avertissement stderr.
+- **tests/test_cli_usability.py** (10 tests) et **tests/test_ots_manager.py**
+  (17 tests, dette Sprint 5) — suite totale : 104 tests, coverage 62%.
+
+#### Documentation
+- **GETTING_STARTED.md**: réécriture complète — prérequis réels documentés
+  (cosign = binaire Go des releases Sigstore, ots = pip opentimestamps-client),
+  `doctor` en étape 1, suppression des chemins locaux obsolètes.
+- **pyproject.toml**: URLs du dépôt réelles (Kenchan1111/GWyl_Mail), maintainers
+  corrigés (les IA contributrices restent créditées dans CONTRIBUTORS.md).
+
+### Sprint 6 (partiel, livré avant ce changelog): Relaxed canonicalization (2025-10-13)
+- Profils `strict`/`relaxed` (`--profile`), liste étendue d'en-têtes MTA exclus,
+  `--profile-override` à la vérification, `canonical_profiles.yml`.
+
+### Sprint 5: DSSE & Identity (livré avant ce changelog, 2025-10-13)
+- Signature DSSE de la preuve (dsse_signer.py), extraction d'identité à la
+  création, issuer matching strict (suffixe avec frontière de point), path
+  traversal bloqué (symlinks), détails de cohérence Rekor↔OTS, privacy metadata.
+
 ### Sprint 4: Polish & Refinement (2025-10-12)
 
 #### Modifié

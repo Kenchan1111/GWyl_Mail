@@ -40,6 +40,10 @@ ENV/
 *.sigstore.bundle
 *.dsse
 
+# Runtime append-only logs (keep logs/anchors/ots tracked)
+logs/verification_audit.jsonl
+logs/mismatch.jsonl
+
 # Testing
 .pytest_cache/
 .coverage
