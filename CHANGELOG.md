@@ -9,6 +9,39 @@ et ce projet adhère à [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-17
+
+### Sprint 10: KPIs mesurés & préparation pilote (2026-09-17)
+
+#### Ajouté
+- **scripts/benchmark.py**: harnais de mesure (hash canonique S→25 Mo, création,
+  vérification offline vs avec binaire ots, overhead, soumission OTS réelle)
+  avec sortie JSON/markdown et seuils KPI_POC.md intégrés.
+- **scripts/interop_postfix.py**: test d'interopérabilité RÉEL — signature →
+  SMTP Postfix (conteneur Docker) → livraison locale → 'check' sur chaque
+  message délivré ; taux mesuré vs KPI ≥95%.
+- **tests/test_performance.py** (3 tests): gardes KPI (vérification <150 ms,
+  overhead <50 Ko, hash 25 Mo borné).
+- **docs/PERFORMANCE.md**: chiffres réels mesurés vs seuils Go/NoGo.
+- **docs/PILOT_GUIDE.md** + **docs/PILOT_FEEDBACK_TEMPLATE.md**: guide
+  destinataire une page, procédure Gmail/Outlook reproductible, formulaire.
+- **.github/workflows/release.yml**: tag v* → tests → build sdist/wheel →
+  release GitHub avec notes auto-générées.
+
+#### KPIs mesurés (résumé — détails dans docs/PERFORMANCE.md)
+
+- Vérification offline: **4,5 ms** (< 150 ms) ✅
+- Overhead embarqué (avec vrai timbre OTS): **4,4 Ko** (< 50 Ko) ✅
+- Soumission OTS réelle: **1,5 s** (< 5 s) ✅
+- Interopérabilité Postfix réel: **100% (50/50)** (≥ 95%) ✅
+- Hash canonique 25 Mo: ~171 ms (info)
+- Non mesurés (OIDC interactif / fenêtre 48h): création Sigstore <1 s,
+  confirmation OTS ≥90% — planifiés au pilote.
+
+#### Modifié
+- Version **0.3.0** (pyproject + __init__), package-data complété
+  (schemas/*.json, *.yml inclus dans la wheel — vérifié par build).
+
 ### Sprint 9: Intégration mail réelle — la preuve voyage avec le message (2026-09-17)
 
 Le gain d'utilisabilité majeur : plus aucun fichier annexe à transférer à la

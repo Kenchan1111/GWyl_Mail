@@ -1,8 +1,8 @@
 # GWyl Mail - État du Projet
 
 **Date**: 2026-09-17
-**Version**: 0.1.0 (PoC - Sprint 9 complété)
-**Status**: Intégration mail réelle livrée (sign/check), 134/134 tests, coverage 69%
+**Version**: 0.3.0 (Sprint 10 complété — prêt pour le pilote)
+**Status**: KPIs mesurés (interop 100% Postfix réel, verify 4,5 ms, overhead 4,4 Ko), 137/137 tests, coverage 69%
 
 ---
 
@@ -190,6 +190,20 @@
 - Non livré (reporté) : tests performance, benchmarks, tests intégration MTA,
   docs INTEGRATION/PERFORMANCE, workflow release — repris dans le plan Sprint 8-10
 
+## ✅ Sprint 10: KPIs mesurés & préparation pilote - COMPLÉTÉ (2026-09-17)
+
+- scripts/benchmark.py + scripts/interop_postfix.py + tests/test_performance.py
+- **KPIs réels mesurés**: vérification offline 4,5 ms (<150ms ✅), overhead
+  4,4 Ko avec vrai timbre OTS (<50 Ko ✅), soumission OTS 1,5 s (<5 s ✅),
+  **interopérabilité Postfix réel 100% (50/50, ≥95% ✅)**, hash 25 Mo ~171 ms
+- docs/PERFORMANCE.md (chiffres réels), docs/PILOT_GUIDE.md,
+  docs/PILOT_FEEDBACK_TEMPLATE.md
+- release.yml (tag → tests → build → GitHub release), version 0.3.0,
+  package-data vérifié par build de wheel
+- Reste au pilote: création Sigstore <1s (OIDC interactif), confirmation
+  OTS ≥90%/48h, Gmail/Outlook manuels
+- Tests: **137/137**, coverage 69%, ruff/black/mypy propres
+
 ## ✅ Sprint 9: Intégration mail réelle - COMPLÉTÉ (2026-09-17)
 
 **La preuve voyage avec le message.**
@@ -306,16 +320,20 @@
 
 ## 🎯 Prochaines Étapes
 
-### Sprint 10: KPIs mesurés & pilote (current)
+### Pilote multi-utilisateurs (Phase 3 du README — current)
 
-1. scripts/benchmark.py + tests/test_performance.py (latence vérification <150ms,
-   overhead preuve complète <50KB, création Sigstore <1s, submit OTS <5s)
-2. docs/PERFORMANCE.md : chiffres réels vs seuils Go/NoGo de KPI_POC.md
-3. Interop réelle : Postfix local Docker × 50 messages ; procédure
-   Gmail/Outlook manuelle documentée
-4. Packaging & release : workflow release.yml, tag v0.3.0, intégrité interne
-   réactivée au tag (make integrity-commit)
-5. Pilote : guide destinataire une page, 5-10 testeurs, formulaire de retour
+1. Tag v0.3.0 + release (workflow release.yml; intégrité interne réactivée au
+   tag via make integrity-commit si souhaité)
+2. Recruter 5-10 testeurs; remettre PILOT_GUIDE.md + formulaire de retour
+3. Mesures longues: confirmation OTS ≥90%/48h, création Sigstore <1s (OIDC),
+   interop Gmail/Outlook manuelle
+4. Analyse des retours → backlog v0.4 (SMTP direct, UI destinataire?)
+
+### Backlog identifié (post-pilote)
+
+- Mesure "création Sigstore <1s" à documenter avec cosign + OIDC réel
+- Améliorations UX sorties CLI selon retours pilote
+- Publication PyPI publique si le pilote est concluant
 
 ---
 

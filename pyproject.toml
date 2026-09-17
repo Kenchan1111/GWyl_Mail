@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwyl-mail"
-version = "0.1.0"
+version = "0.3.0"
 description = "Privacy Infrastructure Layer pour Email - Intégrité cryptographique et timestamping"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -66,6 +66,9 @@ gwyl-mail = "gwyl_mail.cli:main"
 
 [tool.setuptools]
 packages = ["gwyl_mail"]
+
+[tool.setuptools.package-data]
+gwyl_mail = ["schemas/*.json", "*.yml"]
 
 [tool.black]
 line-length = 100
