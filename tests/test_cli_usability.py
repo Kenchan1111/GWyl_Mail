@@ -151,7 +151,7 @@ def test_verify_reports_signed_envelope_as_signed(monkeypatch, tmp_path, capsys)
     proof_path = tmp_path / "proof.json"
     proof_path.write_text(json.dumps(envelope))
 
-    monkeypatch.setattr(cli, "verify_proof_dsse", lambda env: (True, inner, None))
+    monkeypatch.setattr(cli, "verify_proof_dsse", lambda env, **kw: (True, inner, None))
     rc = cli.cmd_verify(_verify_args(tmp_path, proof_path))
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
@@ -165,7 +165,7 @@ def test_verify_strict_fails_on_signature_verification_error(monkeypatch, tmp_pa
     proof_path = tmp_path / "proof.json"
     proof_path.write_text(json.dumps(envelope))
 
-    monkeypatch.setattr(cli, "verify_proof_dsse", lambda env: (False, inner, "boom"))
+    monkeypatch.setattr(cli, "verify_proof_dsse", lambda env, **kw: (False, inner, "boom"))
     args = _verify_args(tmp_path, proof_path)
     args.strict = True
     rc = cli.cmd_verify(args)

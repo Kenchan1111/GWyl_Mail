@@ -134,11 +134,16 @@ def sign_proof_dsse(proof: Dict[str, Any], identity: Optional[str] = None) -> Di
             pass
 
 
-def verify_proof_dsse(envelope: Dict[str, Any]) -> tuple[bool, Dict[str, Any], Optional[str]]:
+def verify_proof_dsse(
+    envelope: Dict[str, Any], lookup_dir: Optional[Path] = None
+) -> tuple[bool, Dict[str, Any], Optional[str]]:
     """Verify DSSE envelope signature and extract proof.
 
     Args:
         envelope: DSSE envelope dict
+        lookup_dir: SPRINT 9 — directory where portable artifacts (referenced
+            by bare attachment filename) have been materialized. Absolute or
+            relative-with-directory bundle paths are used as-is.
 
     Returns:
         (verified, proof_dict, error_message)
@@ -186,6 +191,14 @@ def verify_proof_dsse(envelope: Dict[str, Any]) -> tuple[bool, Dict[str, Any], O
             return False, proof, "Missing signature or bundle in DSSE signature object"
 
         bundle_path = Path(bundle_path_str)
+        # SPRINT 9: portable proofs reference the bundle by bare attachment
+        # filename; resolve it against the lookup directory.
+        if (
+            lookup_dir is not None
+            and not bundle_path.is_absolute()
+            and bundle_path.parent == Path(".")
+        ):
+            bundle_path = Path(lookup_dir) / bundle_path
         if not bundle_path.exists():
             return False, proof, f"Bundle not found: {bundle_path}"
 

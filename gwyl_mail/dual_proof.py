@@ -5,6 +5,7 @@ import hashlib
 import json
 import secrets
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
@@ -12,10 +13,19 @@ from typing import Any, Dict, Optional
 
 from .canonical import GWylCanonical
 from .dsse_signer import sign_proof_dsse
+from .eml_io import BUNDLE_FILENAME, OTS_FILENAME
 from .ots_manager import OTSManager
 from .policy_utils import compute_policy_hash, extract_policy_metadata
 from .sigstore_timestamp import sign_and_timestamp
 from .validation import ProofValidationError, ProofValidator
+
+
+@dataclass
+class ProofArtifacts:
+    """Local files backing a proof (SPRINT 9: used to embed into emails)."""
+
+    ots_path: Optional[Path]
+    bundle_path: Optional[Path]
 
 
 def _utcnow_iso() -> str:
@@ -36,7 +46,9 @@ def create_proof(
     policy_path: Optional[Path] = None,
     dsse: bool = True,
     profile: str = "strict",
-) -> Dict[str, Any]:
+    portable: bool = False,
+    return_artifacts: bool = False,
+) -> Any:
     """Create cryptographic proof for email message (Sprint 6.2.1: profile support).
 
     Args:
@@ -45,9 +57,16 @@ def create_proof(
         policy_path: Optional path to identity policy YAML
         dsse: Whether to wrap proof in DSSE envelope
         profile: Canonicalization profile ("strict" or "relaxed")
+        portable: SPRINT 9 — reference proof artifacts by their attachment
+            filenames (gwylproof.ots, gwylbundle.json) instead of local paths,
+            so the proof can travel inside the email and be verified anywhere.
+            Must be set BEFORE signing (the DSSE signature covers the payload).
+        return_artifacts: SPRINT 9 — also return the local artifact paths
+            (ots file, sigstore bundle) so the caller can embed them.
 
     Returns:
-        Proof dict (or DSSE envelope if dsse=True)
+        Proof dict (or DSSE envelope if dsse=True); with return_artifacts=True,
+        a (proof, ProofArtifacts) tuple.
     """
     content_hash = GWylCanonical.hash(message, profile=profile)
     ts = _utcnow_iso()
@@ -169,6 +188,19 @@ def create_proof(
         },
     }
 
+    # SPRINT 9: portable references — attachment filenames instead of local
+    # paths, applied BEFORE digest/signing so the payload stays stable.
+    # The real local artifacts stay available to the caller via ProofArtifacts.
+    artifacts = ProofArtifacts(
+        ots_path=proof_file,
+        bundle_path=Path(sigstore.bundle_path) if sigstore.bundle_path else None,
+    )
+    if portable:
+        if proof["opentimestamps"]["proof_file"] is not None:
+            proof["opentimestamps"]["proof_file"] = OTS_FILENAME
+        if proof["sigstore"]["bundle_path"] is not None:
+            proof["sigstore"]["bundle_path"] = BUNDLE_FILENAME
+
     # proof_canonical_digest (JCS-like minimal)
     proof["proof_canonical_digest"] = _sha256_hex(
         json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()
@@ -178,6 +210,11 @@ def create_proof(
     result = validator.validate(proof)
     if not result.valid:
         raise ProofValidationError(f"Generated proof invalid: {result.error}")
+
+    if return_artifacts:
+        if dsse:
+            return sign_proof_dsse(proof, identity), artifacts
+        return proof, artifacts
 
     # DSSE signature (wrap proof in DSSE envelope if requested)
     if dsse:

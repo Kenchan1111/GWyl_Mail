@@ -1,8 +1,8 @@
 # GWyl Mail - État du Projet
 
 **Date**: 2026-09-17
-**Version**: 0.1.0 (PoC - Sprint 7 complété)
-**Status**: Noyau honnête et testé, 104/104 tests passing, coverage 62%
+**Version**: 0.1.0 (PoC - Sprint 9 complété)
+**Status**: Intégration mail réelle livrée (sign/check), 134/134 tests, coverage 69%
 
 ---
 
@@ -190,6 +190,35 @@
 - Non livré (reporté) : tests performance, benchmarks, tests intégration MTA,
   docs INTEGRATION/PERFORMANCE, workflow release — repris dans le plan Sprint 8-10
 
+## ✅ Sprint 9: Intégration mail réelle - COMPLÉTÉ (2026-09-17)
+
+**La preuve voyage avec le message.**
+
+- `gwyl_mail/eml_io.py`: injection/extraction/strip de preuve dans le .eml
+  (gwylproof.json + gwylproof.ots + gwylbundle.json, en-tête X-GWyl-Proof)
+- CLI `sign`: .eml signé prêt à envoyer depuis n'importe quel client
+- CLI `check`: le destinataire vérifie le message reçu seul
+  (canonical + DSSE + bundle + OTS), artifacts matérialisés dans .gwyl_mail/inbox/
+- Preuves portables (références par nom de pièce jointe, résolution --lookup-dir)
+- Invariant de hash canonique testé (plain/HTML/attachments, retrait
+  d'en-tête par MTA, mutations Received/X-Spam tolérées même en strict)
+- Falsification du corps détectée de bout en bout (exit 1)
+- docs/INTEGRATION.md, examples/use_cases/, run_examples.sh sans conda ni
+  chemins externes
+- Overhead mesuré: 3,0 Ko (seuil KPI: 50 Ko) — preuve dégradée; mesure
+  complète Sprint 10
+- Tests: +10 → **134/134, coverage 69%**
+
+## ✅ Sprint 8: Solidité du noyau - COMPLÉTÉ (2026-09-17)
+
+- +16 tests sigstore_timestamp/dsse_signer (chemins de dégradation, parsing)
+- allowed_identities appliqué (allowlist certificat, vide = compat)
+- Raisons lisibles (REASON_DESCRIPTIONS, KPI_POC §6)
+- Schéma durci (required structuraux, enums) sans casser les preuves dégradées
+- Codebase formaté black, ruff explicite (E/F/W/I/B), mypy 0 erreur
+- CI: lint job + matrix 3.9→3.12 + job avec opentimestamps-client
+- Makefile: test-poc + doctor — **124/124 tests, coverage 68%**
+
 ## ✅ Sprint 7: Vérité & Onboarding - COMPLÉTÉ (2026-09-17)
 
 **Problème corrigé** : l'outil se taisait ou mentait en mode dégradé.
@@ -277,28 +306,16 @@
 
 ## 🎯 Prochaines Étapes
 
-### Sprint 8: Solidité du noyau (current)
+### Sprint 10: KPIs mesurés & pilote (current)
 
-1. Tests sigstore_timestamp.py (placeholder, timeout, parsing bundle) et dsse_signer (chemins d'erreur)
-2. Durcissement du schéma proof-v0.2.0.json (required sur sous-champs structuraux)
-3. Traiter le code mort (`allowed_identities` inutilisé)
-4. Raisons lisibles (table reason_code → message humain)
-5. CI renforcée (matrix 3.9-3.12, lint, coverage) + cibles Makefile (`test-poc`, `doctor`)
-
-### Sprint 9: Intégration mail réelle
-
-1. Preuves autonomes (bundle Sigstore et .ots embarqués)
-2. `gwyl_mail/eml_io.py` (inject/extract preuve dans un .eml)
-3. CLI `sign` (.eml prêt à envoyer) et `check` (vérification du mail reçu seul)
-4. Tests de tolérance MTA de bout en bout (profil relaxed)
-5. docs/INTEGRATION.md + examples/use_cases/
-
-### Sprint 10: KPIs mesurés & pilote
-
-1. scripts/benchmark.py + tests/test_performance.py (latence <150ms, overhead <50KB)
-2. Interop réelle (Postfix local Docker, procédure Gmail/Outlook)
-3. Packaging & release v0.3.0
-4. Pilote multi-utilisateurs (Phase 3 du README)
+1. scripts/benchmark.py + tests/test_performance.py (latence vérification <150ms,
+   overhead preuve complète <50KB, création Sigstore <1s, submit OTS <5s)
+2. docs/PERFORMANCE.md : chiffres réels vs seuils Go/NoGo de KPI_POC.md
+3. Interop réelle : Postfix local Docker × 50 messages ; procédure
+   Gmail/Outlook manuelle documentée
+4. Packaging & release : workflow release.yml, tag v0.3.0, intégrité interne
+   réactivée au tag (make integrity-commit)
+5. Pilote : guide destinataire une page, 5-10 testeurs, formulaire de retour
 
 ---
 

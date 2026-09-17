@@ -17,6 +17,14 @@ from .canonical import GWylCanonical
 from .doctor import cmd_doctor
 from .dsse_signer import extract_proof_from_dsse, verify_proof_dsse
 from .dual_proof import create_proof
+from .eml_io import (
+    BUNDLE_FILENAME,
+    OTS_FILENAME,
+    PROOF_JSON_FILENAME,
+    extract_proof,
+    inject_proof,
+    strip_proof,
+)
 from .ots_manager import OTSManager
 
 
@@ -132,6 +140,137 @@ def cmd_proof(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sign(args: argparse.Namespace) -> int:
+    """SPRINT 9: create a portable proof and embed it in the EML itself.
+
+    Output is a ready-to-send .eml carrying gwylproof.json (+ gwylproof.ots,
+    + gwylbundle.json when signing succeeded). The recipient verifies with
+    'gwyl-mail check' on the received message alone.
+    """
+    data = Path(args.eml).read_bytes()
+    msg = BytesParser(policy=policy.default).parsebytes(data)
+    use_dsse = not getattr(args, "no_dsse", False)
+    profile = getattr(args, "profile", "strict")
+    allow_degraded = bool(getattr(args, "allow_degraded", False))
+
+    missing = _tool_gaps(use_dsse)
+    if missing and not allow_degraded:
+        print("ERROR: refusing to sign with a degraded proof.", file=sys.stderr)
+        for tool, impact in missing:
+            print(f"  - {tool} not found: {impact}", file=sys.stderr)
+        print(file=sys.stderr)
+        print(
+            "Fix: install the missing tools, check with 'gwyl-mail doctor' (see GETTING_STARTED.md).",
+            file=sys.stderr,
+        )
+        print("Or: pass --allow-degraded to sign anyway (hash-only guarantees).", file=sys.stderr)
+        return 2
+    if missing and allow_degraded:
+        _print_degraded_banner(missing)
+
+    envelope, artifacts = create_proof(
+        msg,
+        identity=args.identity,
+        dsse=use_dsse,
+        profile=profile,
+        portable=True,
+        return_artifacts=True,
+    )
+
+    # Embed the artifacts the verification will need on the recipient side
+    ots_bytes: Optional[bytes] = None
+    if artifacts.ots_path and artifacts.ots_path.exists():
+        ots_bytes = artifacts.ots_path.read_bytes()
+    bundle_bytes: Optional[bytes] = None
+    if artifacts.bundle_path and artifacts.bundle_path.exists():
+        bundle_bytes = artifacts.bundle_path.read_bytes()
+
+    # The envelope signature bundle reference sits OUTSIDE the signed payload:
+    # make it portable too (bare attachment filename).
+    if isinstance(envelope, dict) and envelope.get("signatures"):
+        sig_obj = envelope["signatures"][0]
+        if sig_obj.get("bundle"):
+            sig_obj["bundle"] = BUNDLE_FILENAME
+
+    signed = inject_proof(data, envelope, ots_bytes=ots_bytes, bundle_bytes=bundle_bytes)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(signed)
+
+    # Honest reporting (same contract as create-proof)
+    is_envelope = isinstance(envelope, dict) and "payloadType" in envelope
+    if use_dsse and is_envelope and not envelope.get("signatures"):
+        print(
+            f"Signed EML written to {out} — proof is UNSIGNED (signature missing)",
+            file=sys.stderr,
+        )
+    else:
+        print(f"Signed EML written to {out} (profile: {profile})")
+    print(
+        "Send it from your regular mail client. Recipient verifies with: gwyl-mail check <received.eml>"
+    )
+    inner = extract_proof_from_dsse(envelope) if is_envelope else envelope
+    if isinstance(inner, dict):
+        ots_status = (inner.get("opentimestamps", {}) or {}).get("status")
+        if ots_status == "FAILED":
+            print(
+                "⚠️  OpenTimestamps anchoring FAILED: no Bitcoin timestamp embedded.",
+                file=sys.stderr,
+            )
+        elif ots_status == "PENDING":
+            print("OpenTimestamps stamp embedded (pending Bitcoin confirmation, ~48h).")
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """SPRINT 9: verify a received message against its embedded proof.
+
+    Extracts gwylproof.json/gwylproof.ots/gwylbundle.json from the message,
+    strips the proof attachments (the canonical hash covers the message
+    WITHOUT them), materializes the artifacts in an inbox directory and
+    delegates to the standard verification core.
+    """
+    eml_path = Path(args.eml)
+    data = eml_path.read_bytes()
+    extracted = extract_proof(data)
+    if extracted is None:
+        print(
+            json.dumps(
+                {
+                    "error": "no_gwyl_proof",
+                    "details": "no gwylproof.json attachment found in message",
+                }
+            )
+        )
+        return 1
+
+    inbox = Path(".gwyl_mail/inbox") / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    inbox.mkdir(parents=True, exist_ok=True)
+    if extracted.ots_bytes is not None:
+        (inbox / OTS_FILENAME).write_bytes(extracted.ots_bytes)
+    if extracted.bundle_bytes is not None:
+        (inbox / BUNDLE_FILENAME).write_bytes(extracted.bundle_bytes)
+    proof_json_path = inbox / PROOF_JSON_FILENAME
+    proof_json_path.write_text(json.dumps(extracted.envelope, ensure_ascii=False, indent=2))
+
+    stripped_path = inbox / "message_stripped.eml"
+    stripped_path.write_bytes(strip_proof(data))
+
+    print(f"Proof extracted to {inbox}", file=sys.stderr)
+
+    verify_args = argparse.Namespace(
+        eml=str(stripped_path),
+        proof=str(proof_json_path),
+        strict=bool(getattr(args, "strict", False)),
+        policy=None,
+        expect_identity=getattr(args, "expect_identity", None),
+        allow_issuer=getattr(args, "allow_issuer", None),
+        profile_override=getattr(args, "profile_override", None),
+        lookup_dir=str(inbox),
+    )
+    return cmd_verify(verify_args)
+
+
 def _has(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
@@ -241,6 +380,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
     expect_identity: Optional[str] = getattr(args, "expect_identity", None)
     allow_issuer: Optional[str] = getattr(args, "allow_issuer", None)
     profile_override: Optional[str] = getattr(args, "profile_override", None)
+    # SPRINT 9: directory where portable artifacts (bare filenames like
+    # gwylbundle.json / gwylproof.ots) have been materialized.
+    lookup_dir_raw = getattr(args, "lookup_dir", None)
+    lookup_dir: Optional[Path] = Path(str(lookup_dir_raw)) if lookup_dir_raw else None
 
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     reasons: List[str] = []
@@ -266,7 +409,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if "payload" in proof_data and "payloadType" in proof_data:
         # DSSE envelope detected
         envelope_has_signature = bool(proof_data.get("signatures"))
-        verified, proof, error = verify_proof_dsse(proof_data)
+        verified, proof, error = verify_proof_dsse(proof_data, lookup_dir=lookup_dir)
         dsse_signed = verified and envelope_has_signature
         if not envelope_has_signature:
             print(
@@ -337,7 +480,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
     bundle_issuer: Optional[str] = None
     if bundle_path and _has("cosign"):
         bp = Path(bundle_path)
-        base = Path(".gwyl_mail/proofs/sigstore")
+        base = lookup_dir if lookup_dir else Path(".gwyl_mail/proofs/sigstore")
+        # SPRINT 9: portable bare filename → resolve against the lookup dir
+        if lookup_dir and not bp.is_absolute() and bp.parent == Path("."):
+            bp = lookup_dir / bp
         if _safe_in_dir(bp, base) and bp.exists():
             # Use unique temp file to avoid collisions
             with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp_file:
@@ -403,23 +549,30 @@ def cmd_verify(args: argparse.Namespace) -> int:
     ots_ok = False
     ots_info = proof.get("opentimestamps", {}) or {}
     ots_file = ots_info.get("proof_file")
-    if ots_file and _has("ots"):
-        try:
-            res = subprocess.run(["ots", "verify", str(ots_file)], capture_output=True, text=True)
-            if res.returncode != 0:
-                ots_ok = False
-                reasons.append("ots_verify_failed")
-            else:
-                out = (res.stdout or "") + (res.stderr or "")
-                if "Pending confirmation" in out or "not complete" in out:
+    if ots_file:
+        ots_path = Path(ots_file)
+        # SPRINT 9: portable bare filename → resolve against the lookup dir
+        if lookup_dir and not ots_path.is_absolute() and ots_path.parent == Path("."):
+            ots_path = lookup_dir / ots_path
+        if _has("ots"):
+            try:
+                res = subprocess.run(
+                    ["ots", "verify", str(ots_path)], capture_output=True, text=True
+                )
+                if res.returncode != 0:
                     ots_ok = False
-                    reasons.append("ots_pending")
+                    reasons.append("ots_verify_failed")
                 else:
-                    ots_ok = True
-        except Exception:
-            reasons.append("ots_verify_failed")
-    elif ots_file:
-        reasons.append("ots_cli_missing")
+                    out = (res.stdout or "") + (res.stderr or "")
+                    if "Pending confirmation" in out or "not complete" in out:
+                        ots_ok = False
+                        reasons.append("ots_pending")
+                    else:
+                        ots_ok = True
+            except Exception:
+                reasons.append("ots_verify_failed")
+        else:
+            reasons.append("ots_cli_missing")
 
     # Policy/Identity checks (optional)
     policy_ok = True
@@ -578,6 +731,36 @@ def main() -> int:
     )
     doc.set_defaults(func=cmd_doctor)
 
+    sg = sub.add_parser("sign", help="Create a portable proof embedded in the EML (ready to send)")
+    sg.add_argument("eml")
+    sg.add_argument("--identity", required=True)
+    sg.add_argument("--out", "-o", required=True, help="Output signed EML path")
+    sg.add_argument("--no-dsse", action="store_true", help="Disable DSSE signature")
+    sg.add_argument(
+        "--allow-degraded",
+        action="store_true",
+        help="Sign even if cosign/ots are missing (reduced guarantees, loudly warned)",
+    )
+    sg.add_argument(
+        "--profile",
+        choices=["strict", "relaxed"],
+        default="strict",
+        help="Canonicalization profile ('relaxed' tolerates MTA mutations in transit)",
+    )
+    sg.set_defaults(func=cmd_sign)
+
+    ck = sub.add_parser("check", help="Verify a received message against its embedded proof")
+    ck.add_argument("eml")
+    ck.add_argument("--strict", action="store_true")
+    ck.add_argument("--expect-identity", help="Expected signer identity (email)")
+    ck.add_argument("--allow-issuer", help="Allowed OIDC issuer substring")
+    ck.add_argument(
+        "--profile-override",
+        choices=["strict", "relaxed"],
+        help="Override the proof's canonicalization profile",
+    )
+    ck.set_defaults(func=cmd_check)
+
     up = sub.add_parser("upgrade-ots", help="Upgrade an OTS proof file")
     up.add_argument("proof")
     up.set_defaults(func=cmd_ots_upgrade)
@@ -589,6 +772,10 @@ def main() -> int:
     vf.add_argument("--policy", help="Path to identity policy YAML")
     vf.add_argument("--expect-identity", help="Expected signer identity (email)")
     vf.add_argument("--allow-issuer", help="Allowed OIDC issuer substring")
+    vf.add_argument(
+        "--lookup-dir",
+        help="Directory where portable proof artifacts (gwylbundle.json, gwylproof.ots) live",
+    )
     vf.add_argument(
         "--profile-override",
         choices=["strict", "relaxed"],

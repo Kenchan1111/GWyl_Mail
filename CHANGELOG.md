@@ -9,6 +9,42 @@ et ce projet adhère à [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Sprint 9: Intégration mail réelle — la preuve voyage avec le message (2026-09-17)
+
+Le gain d'utilisabilité majeur : plus aucun fichier annexe à transférer à la
+main entre expéditeur et destinataire.
+
+#### Ajouté
+- **gwyl_mail/eml_io.py**: inject_proof / extract_proof / strip_proof — la
+  preuve est embarquée dans le .eml (pièces jointes gwylproof.json,
+  gwylproof.ots, gwylbundle.json + en-tête X-GWyl-Proof: v1). Détection par
+  pièce jointe (l'en-tête peut être retiré par un MTA). Invariant de hash
+  canonique garanti et testé (plain/HTML/attachments).
+- **CLI `gwyl-mail sign`**: produit un .eml prêt à envoyer depuis n'importe
+  quel client, avec preuve portable embarquée (même gating honnête que
+  create-proof: refus sans outils, --allow-degraded).
+- **CLI `gwyl-mail check`**: le destinataire vérifie le message reçu SEUL —
+  extraction, strip des pièces de preuve, matérialisation dans
+  .gwyl_mail/inbox/<ts>/, délégation au cœur de vérification.
+- **Preuves portables** (dual_proof portable=True + ProofArtifacts): les
+  références internes (bundle_path, proof_file) deviennent des noms de pièces
+  jointes, résolus via --lookup-dir à la vérification.
+- **docs/INTEGRATION.md** et **examples/use_cases/USE_CASES.md** (livrables
+  Sprint 6 jamais faits).
+- **tests/test_eml_io.py** (10 tests): roundtrip, invariant de hash,
+  suppression d'en-tête par MTA, mutations MTA, falsification de corps
+  détectée, boucle complète sign → check.
+
+#### Modifié
+- **examples/run_examples.sh**: retrait de conda GWYL_Env et du chemin externe
+  /home/zack/GWyl_Integrity ; ajout de la démo sign/check ; doctor en étape 1.
+- **verify_proof_dsse**: paramètre lookup_dir (résolution du bundle portable).
+
+#### Mesures
+- Overhead embarqué (preuve dégradée, non signée): **3,0 Ko** — seuil KPI
+  (50 Ko) largement respecté ; mesure preuve complète prévue Sprint 10.
+- Suite: **134/134 tests**, coverage 69%, ruff/black/mypy propres.
+
 ### Sprint 8: Solidité du noyau (2026-09-17)
 
 #### Ajouté
